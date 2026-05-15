@@ -1,0 +1,2031 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>METALLBOT — Карточка контрагента</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0c0c; --bg-2:#141414; --bg-3:#1a1a1a; --line:#222;
+    --ink:#e8e8e8; --ink-2:#a0a0a0; --ink-3:#666; --ink-4:#3a3a3a;
+    --accent:#e8e8e8; --warn:#d4a72c; --good:#5ec27a; --bad:#d96565;
+    --r:14px;
+  }
+  html,body{margin:0;background:#1d1d1f;color:var(--ink);font-family:Manrope,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;letter-spacing:.02em}
+</style>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  // Telegram Mini App init — применяем тему и сигналим о готовности
+  if (window.Telegram && window.Telegram.WebApp) {
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    // Подстраиваем фон под тему Telegram
+    document.documentElement.style.setProperty('--tg-bg', tg.themeParams.bg_color || '#0c0c0c');
+  }
+</script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+// iOS.jsx — Simplified iOS 26 (Liquid Glass) device frame
+// Based on the iOS 26 UI Kit + Figma status bar spec. No assets, no deps.
+// Exports: IOSDevice, IOSStatusBar, IOSNavBar, IOSGlassPill, IOSList, IOSListRow, IOSKeyboard
+
+// ─────────────────────────────────────────────────────────────
+// Status bar
+// ─────────────────────────────────────────────────────────────
+function IOSStatusBar({ dark = false, time = '9:41' }) {
+  const c = dark ? '#fff' : '#000';
+  return (
+    <div style={{
+      display: 'flex', gap: 154, alignItems: 'center', justifyContent: 'center',
+      padding: '21px 24px 19px', boxSizing: 'border-box',
+      position: 'relative', zIndex: 20, width: '100%',
+    }}>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 1.5 }}>
+        <span style={{
+          fontFamily: '-apple-system, "SF Pro", system-ui', fontWeight: 590,
+          fontSize: 17, lineHeight: '22px', color: c,
+        }}>{time}</span>
+      </div>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, paddingTop: 1, paddingRight: 1 }}>
+        <svg width="19" height="12" viewBox="0 0 19 12">
+          <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill={c}/>
+          <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill={c}/>
+          <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill={c}/>
+          <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill={c}/>
+        </svg>
+        <svg width="17" height="12" viewBox="0 0 17 12">
+          <path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill={c}/>
+          <path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill={c}/>
+          <circle cx="8.5" cy="10.5" r="1.5" fill={c}/>
+        </svg>
+        <svg width="27" height="13" viewBox="0 0 27 13">
+          <rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke={c} strokeOpacity="0.35" fill="none"/>
+          <rect x="2" y="2" width="20" height="9" rx="2" fill={c}/>
+          <path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill={c} fillOpacity="0.4"/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Liquid glass pill — blur + tint + shine
+// ─────────────────────────────────────────────────────────────
+function IOSGlassPill({ children, dark = false, style = {} }) {
+  return (
+    <div style={{
+      height: 44, minWidth: 44, borderRadius: 9999,
+      position: 'relative', overflow: 'hidden',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: dark
+        ? '0 2px 6px rgba(0,0,0,0.35), 0 6px 16px rgba(0,0,0,0.2)'
+        : '0 1px 3px rgba(0,0,0,0.07), 0 3px 10px rgba(0,0,0,0.06)',
+      ...style,
+    }}>
+      {/* blur + tint */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 9999,
+        backdropFilter: 'blur(12px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+        background: dark ? 'rgba(120,120,128,0.28)' : 'rgba(255,255,255,0.5)',
+      }} />
+      {/* shine */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 9999,
+        boxShadow: dark
+          ? 'inset 1.5px 1.5px 1px rgba(255,255,255,0.15), inset -1px -1px 1px rgba(255,255,255,0.08)'
+          : 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4)',
+        border: dark ? '0.5px solid rgba(255,255,255,0.15)' : '0.5px solid rgba(0,0,0,0.06)',
+      }} />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', padding: '0 4px' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Navigation bar — glass pills + large title
+// ─────────────────────────────────────────────────────────────
+function IOSNavBar({ title = 'Title', dark = false, trailingIcon = true }) {
+  const muted = dark ? 'rgba(255,255,255,0.6)' : '#404040';
+  const text = dark ? '#fff' : '#000';
+  const pillIcon = (content) => (
+    <IOSGlassPill dark={dark}>
+      <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {content}
+      </div>
+    </IOSGlassPill>
+  );
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 10,
+      paddingTop: 62, paddingBottom: 10, position: 'relative', zIndex: 5,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 16px',
+      }}>
+        {/* back chevron */}
+        {pillIcon(
+          <svg width="12" height="20" viewBox="0 0 12 20" fill="none" style={{ marginLeft: -1 }}>
+            <path d="M10 2L2 10l8 8" stroke={muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+        {/* trailing ellipsis */}
+        {trailingIcon && pillIcon(
+          <svg width="22" height="6" viewBox="0 0 22 6">
+            <circle cx="3" cy="3" r="2.5" fill={muted}/>
+            <circle cx="11" cy="3" r="2.5" fill={muted}/>
+            <circle cx="19" cy="3" r="2.5" fill={muted}/>
+          </svg>
+        )}
+      </div>
+      {/* large title */}
+      <div style={{
+        padding: '0 16px',
+        fontFamily: '-apple-system, system-ui',
+        fontSize: 34, fontWeight: 700, lineHeight: '41px',
+        color: text, letterSpacing: 0.4,
+      }}>{title}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Grouped list (inset card, r:26) + row (52px)
+// ─────────────────────────────────────────────────────────────
+function IOSListRow({ title, detail, icon, chevron = true, isLast = false, dark = false }) {
+  const text = dark ? '#fff' : '#000';
+  const sec = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
+  const ter = dark ? 'rgba(235,235,245,0.3)' : 'rgba(60,60,67,0.3)';
+  const sep = dark ? 'rgba(84,84,88,0.65)' : 'rgba(60,60,67,0.12)';
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', minHeight: 52,
+      padding: '0 16px', position: 'relative',
+      fontFamily: '-apple-system, system-ui', fontSize: 17,
+      letterSpacing: -0.43,
+    }}>
+      {icon && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 7, background: icon,
+          marginRight: 12, flexShrink: 0,
+        }} />
+      )}
+      <div style={{ flex: 1, color: text }}>{title}</div>
+      {detail && <span style={{ color: sec, marginRight: 6 }}>{detail}</span>}
+      {chevron && (
+        <svg width="8" height="14" viewBox="0 0 8 14" style={{ flexShrink: 0 }}>
+          <path d="M1 1l6 6-6 6" stroke={ter} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+      {!isLast && (
+        <div style={{
+          position: 'absolute', bottom: 0, right: 0,
+          left: icon ? 58 : 16, height: 0.5, background: sep,
+        }} />
+      )}
+    </div>
+  );
+}
+
+function IOSList({ header, children, dark = false }) {
+  const hc = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
+  const bg = dark ? '#1C1C1E' : '#fff';
+  return (
+    <div>
+      {header && (
+        <div style={{
+          fontFamily: '-apple-system, system-ui', fontSize: 13,
+          color: hc, textTransform: 'uppercase',
+          padding: '8px 36px 6px', letterSpacing: -0.08,
+        }}>{header}</div>
+      )}
+      <div style={{
+        background: bg, borderRadius: 26,
+        margin: '0 16px', overflow: 'hidden',
+      }}>{children}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Device frame
+// ─────────────────────────────────────────────────────────────
+function IOSDevice({
+  children, width = 402, height = 874, dark = false,
+  title, keyboard = false,
+}) {
+  return (
+    <div style={{
+      width, height, borderRadius: 48, overflow: 'hidden',
+      position: 'relative', background: dark ? '#000' : '#F2F2F7',
+      boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
+      fontFamily: '-apple-system, system-ui, sans-serif',
+      WebkitFontSmoothing: 'antialiased',
+    }}>
+      {/* dynamic island */}
+      <div style={{
+        position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 50,
+      }} />
+      {/* status bar (absolute) */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <IOSStatusBar dark={dark} />
+      </div>
+      {/* nav + content */}
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {title !== undefined && <IOSNavBar title={title} dark={dark} />}
+        <div style={{ flex: 1, overflow: 'auto' }}>{children}</div>
+        {keyboard && <IOSKeyboard dark={dark} />}
+      </div>
+      {/* home indicator — always on top */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 60,
+        height: 34, display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+        paddingBottom: 8, pointerEvents: 'none',
+      }}>
+        <div style={{
+          width: 139, height: 5, borderRadius: 100,
+          background: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.25)',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Keyboard — iOS 26 liquid glass
+// ─────────────────────────────────────────────────────────────
+function IOSKeyboard({ dark = false }) {
+  const glyph = dark ? 'rgba(255,255,255,0.7)' : '#595959';
+  const sugg = dark ? 'rgba(255,255,255,0.6)' : '#333';
+  const keyBg = dark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.85)';
+
+  // special-key icons
+  const icons = {
+    shift: <svg width="19" height="17" viewBox="0 0 19 17"><path d="M9.5 1L1 9.5h4.5V16h8V9.5H18L9.5 1z" fill={glyph}/></svg>,
+    del: <svg width="23" height="17" viewBox="0 0 23 17"><path d="M7 1h13a2 2 0 012 2v11a2 2 0 01-2 2H7l-6-7.5L7 1z" fill="none" stroke={glyph} strokeWidth="1.6" strokeLinejoin="round"/><path d="M10 5l7 7M17 5l-7 7" stroke={glyph} strokeWidth="1.6" strokeLinecap="round"/></svg>,
+    ret: <svg width="20" height="14" viewBox="0 0 20 14"><path d="M18 1v6H4m0 0l4-4M4 7l4 4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  };
+
+  const key = (content, { w, flex, ret, fs = 25, k } = {}) => (
+    <div key={k} style={{
+      height: 42, borderRadius: 8.5,
+      flex: flex ? 1 : undefined, width: w, minWidth: 0,
+      background: ret ? '#08f' : keyBg,
+      boxShadow: '0 1px 0 rgba(0,0,0,0.075)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: '-apple-system, "SF Compact", system-ui',
+      fontSize: fs, fontWeight: 458, color: ret ? '#fff' : glyph,
+    }}>{content}</div>
+  );
+
+  const row = (keys, pad = 0) => (
+    <div style={{ display: 'flex', gap: 6.5, justifyContent: 'center', padding: `0 ${pad}px` }}>
+      {keys.map(l => key(l, { flex: true, k: l }))}
+    </div>
+  );
+
+  return (
+    <div style={{
+      position: 'relative', zIndex: 15, borderRadius: 27, overflow: 'hidden',
+      padding: '11px 0 2px',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      boxShadow: dark
+        ? '0 -2px 20px rgba(0,0,0,0.09)'
+        : '0 -1px 6px rgba(0,0,0,0.018), 0 -3px 20px rgba(0,0,0,0.012)',
+    }}>
+      {/* liquid glass bg — same recipe as nav pills */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 27,
+        backdropFilter: 'blur(12px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+        background: dark ? 'rgba(120,120,128,0.14)' : 'rgba(255,255,255,0.25)',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 27,
+        boxShadow: dark
+          ? 'inset 1.5px 1.5px 1px rgba(255,255,255,0.15)'
+          : 'inset 1.5px 1.5px 1px rgba(255,255,255,0.7), inset -1px -1px 1px rgba(255,255,255,0.4)',
+        border: dark ? '0.5px solid rgba(255,255,255,0.15)' : '0.5px solid rgba(0,0,0,0.06)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* autocorrect bar */}
+      <div style={{
+        display: 'flex', gap: 20, alignItems: 'center',
+        padding: '8px 22px 13px', width: '100%', boxSizing: 'border-box',
+        position: 'relative',
+      }}>
+        {['"The"', 'the', 'to'].map((w, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <div style={{ width: 1, height: 25, background: '#ccc', opacity: 0.3 }} />}
+            <div style={{
+              flex: 1, textAlign: 'center',
+              fontFamily: '-apple-system, system-ui', fontSize: 17,
+              color: sugg, letterSpacing: -0.43, lineHeight: '22px',
+            }}>{w}</div>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* key layout */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 13,
+        padding: '0 6.5px', width: '100%', boxSizing: 'border-box',
+        position: 'relative',
+      }}>
+        {row(['q','w','e','r','t','y','u','i','o','p'])}
+        {row(['a','s','d','f','g','h','j','k','l'], 20)}
+        <div style={{ display: 'flex', gap: 14.25, alignItems: 'center' }}>
+          {key(icons.shift, { w: 45, k: 'shift' })}
+          <div style={{ display: 'flex', gap: 6.5, flex: 1 }}>
+            {['z','x','c','v','b','n','m'].map(l => key(l, { flex: true, k: l }))}
+          </div>
+          {key(icons.del, { w: 45, k: 'del' })}
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {key('ABC', { w: 92.25, fs: 18, k: 'abc' })}
+          {key('', { flex: true, k: 'space' })}
+          {key(icons.ret, { w: 92.25, ret: true, k: 'ret' })}
+        </div>
+      </div>
+
+      {/* bottom spacer (emoji+mic area, icons omitted) */}
+      <div style={{ height: 56, width: '100%', position: 'relative' }} />
+    </div>
+  );
+}
+
+Object.assign(window, {
+  IOSDevice, IOSStatusBar, IOSNavBar, IOSGlassPill, IOSList, IOSListRow, IOSKeyboard,
+});
+
+</script>
+<script type="text/babel">
+
+// DesignCanvas.jsx — Figma-ish design canvas wrapper
+// Warm gray grid bg + Sections + Artboards + PostIt notes.
+// Artboards are reorderable (grip-drag), deletable, labels/titles are
+// inline-editable, and any artboard can be opened in a fullscreen focus
+// overlay (←/→/Esc). State persists to a .design-canvas.state.json sidecar
+// via the host bridge. No assets, no deps.
+//
+// Usage:
+//   <DesignCanvas>
+//     <DCSection id="onboarding" title="Onboarding" subtitle="First-run variants">
+//       <DCArtboard id="a" label="A · Dusk" width={260} height={480}>…</DCArtboard>
+//       <DCArtboard id="b" label="B · Minimal" width={260} height={480}>…</DCArtboard>
+//     </DCSection>
+//   </DesignCanvas>
+
+const DC = {
+  bg: '#f0eee9',
+  grid: 'rgba(0,0,0,0.06)',
+  label: 'rgba(60,50,40,0.7)',
+  title: 'rgba(40,30,20,0.85)',
+  subtitle: 'rgba(60,50,40,0.6)',
+  postitBg: '#fef4a8',
+  postitText: '#5a4a2a',
+  font: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+};
+
+// One-time CSS injection (classes are dc-prefixed so they don't collide with
+// the hosted design's own styles).
+if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
+  const s = document.createElement('style');
+  s.id = 'dc-styles';
+  s.textContent = [
+    '.dc-editable{cursor:text;outline:none;white-space:nowrap;border-radius:3px;padding:0 2px;margin:0 -2px}',
+    '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #c96442}',
+    '[data-dc-slot]{transition:transform .18s cubic-bezier(.2,.7,.3,1)}',
+    '[data-dc-slot].dc-dragging{transition:none;z-index:10;pointer-events:none}',
+    '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #c96442;transform:scale(1.02)}',
+    // isolation:isolate contains artboard content's z-indexes so a
+    // z-indexed child (sticky navbar etc.) can't paint over .dc-header or
+    // the .dc-menu popover that drops into the top of the card.
+    '.dc-card{isolation:isolate;transition:box-shadow .15s,transform .15s}',
+    '.dc-card *{scrollbar-width:none}',
+    '.dc-card *::-webkit-scrollbar{display:none}',
+    // Per-artboard header: grip + label on the left, delete/expand on the
+    // right. Single flex row; when the artboard's on-screen width is too
+    // narrow for both the label yields (ellipsis, then hidden entirely below
+    // ~4ch via the container query) and the buttons stay on the row.
+    '.dc-header{position:absolute;bottom:100%;left:-4px;margin-bottom:calc(4px * var(--dc-inv-zoom,1));z-index:2;',
+    '  display:flex;align-items:center;container-type:inline-size}',
+    '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px;flex:1 1 auto;min-width:0}',
+    '.dc-grip{flex:0 0 auto;cursor:grab;display:flex;align-items:center;padding:5px 4px;border-radius:4px;transition:background .12s,opacity .12s}',
+    '.dc-grip:hover{background:rgba(0,0,0,.08)}',
+    '.dc-grip:active{cursor:grabbing}',
+    '.dc-labeltext{flex:1 1 auto;min-width:0;cursor:pointer;border-radius:4px;padding:3px 6px;',
+    '  display:flex;align-items:center;transition:background .12s;overflow:hidden}',
+    // Below ~4ch of label room: hide the label entirely, and drop the grip to
+    // hover-only (same reveal rule as .dc-btns) so a narrow header is clean
+    // until the card is moused.
+    '@container (max-width: 110px){',
+    '  .dc-labeltext{display:none}',
+    '  .dc-grip{opacity:0}',
+    '  [data-dc-slot]:hover .dc-grip{opacity:1}',
+    '}',
+    '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
+    '.dc-labeltext .dc-editable{overflow:hidden;text-overflow:ellipsis;max-width:100%}',
+    '.dc-labeltext .dc-editable:focus{overflow:visible;text-overflow:clip}',
+    '.dc-btns{flex:0 0 auto;margin-left:auto;display:flex;gap:2px;opacity:0;transition:opacity .12s}',
+    '[data-dc-slot]:hover .dc-btns,.dc-btns:has(.dc-menu){opacity:1}',
+    '.dc-expand,.dc-kebab{width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
+    '  background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center;',
+    '  font:inherit;transition:background .12s,color .12s}',
+    '.dc-expand:hover,.dc-kebab:hover{background:rgba(0,0,0,.06);color:#2a251f}',
+    // Slot hosting an open menu floats above later siblings (which otherwise
+    // paint on top — same z-index:auto, later DOM order) so the popup isn't
+    // clipped by the next card.
+    '[data-dc-slot]:has(.dc-menu){z-index:10}',
+    '.dc-menu{position:absolute;top:100%;right:0;margin-top:4px;background:#fff;border-radius:8px;',
+    '  box-shadow:0 8px 28px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.05);padding:4px;min-width:160px;z-index:10}',
+    '.dc-menu button{display:block;width:100%;padding:7px 10px;border:0;background:transparent;',
+    '  border-radius:5px;font-family:inherit;font-size:13px;font-weight:500;line-height:1.2;',
+    '  color:#29261b;cursor:pointer;text-align:left;transition:background .12s;white-space:nowrap}',
+    '.dc-menu button:hover{background:rgba(0,0,0,.05)}',
+    '.dc-menu hr{border:0;border-top:1px solid rgba(0,0,0,.08);margin:4px 2px}',
+    '.dc-menu .dc-danger{color:#c96442}',
+    '.dc-menu .dc-danger:hover{background:rgba(201,100,66,.1)}',
+    // Chrome (titles / labels / buttons) counter-scales against the viewport
+    // zoom so it stays a constant on-screen size. --dc-inv-zoom is set by
+    // DCViewport on every transform update and inherits to all descendants —
+    // any overlay inside the world (e.g. a TweaksPanel on an artboard) can use
+    // it the same way.
+    //
+    // The header uses transform:scale (out-of-flow, so layout impact doesn't
+    // matter) with its world-space width set to card-width / inv-zoom so that
+    // after counter-scaling its on-screen width exactly matches the card's —
+    // that's what lets the container query + text-overflow behave against the
+    // card's visible edge at every zoom level.
+    //
+    // The section head uses CSS zoom instead of transform so its layout box
+    // grows with the counter-scale, pushing the card row down — otherwise the
+    // constant-screen-size title would overflow into the (shrinking) world-
+    // space gap and overlap the artboard headers at low zoom.
+    '.dc-header{width:calc((100% + 4px) / var(--dc-inv-zoom,1));',
+    '  transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom left}',
+    '.dc-sectionhead{zoom:var(--dc-inv-zoom,1)}',
+  ].join('\n');
+  document.head.appendChild(s);
+}
+
+const DCCtx = React.createContext(null);
+
+// ─────────────────────────────────────────────────────────────
+// DesignCanvas — stateful wrapper around the pan/zoom viewport.
+// Owns runtime state (per-section order, renamed titles/labels, hidden
+// artboards, focused artboard). Order/titles/labels/hidden persist to a
+// .design-canvas.state.json
+// sidecar next to the HTML. Reads go via plain fetch() so the saved
+// arrangement is visible anywhere the HTML + sidecar are served together
+// (omelette preview, direct link, downloaded zip). Writes go through the
+// host's window.omelette bridge — editing requires the omelette runtime.
+// Focus is ephemeral.
+// ─────────────────────────────────────────────────────────────
+const DC_STATE_FILE = '.design-canvas.state.json';
+
+function DesignCanvas({ children, minScale, maxScale, style }) {
+  const [state, setState] = React.useState({ sections: {}, focus: null });
+  // Hold rendering until the sidecar read settles so the saved order/titles
+  // appear on first paint (no source-order flash). didRead gates writes until
+  // the read settles so the empty initial state can't clobber a slow read;
+  // skipNextWrite suppresses the one echo-write that would otherwise follow
+  // hydration.
+  const [ready, setReady] = React.useState(false);
+  const didRead = React.useRef(false);
+  const skipNextWrite = React.useRef(false);
+
+  React.useEffect(() => {
+    let off = false;
+    fetch('./' + DC_STATE_FILE)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((saved) => {
+        if (off || !saved || !saved.sections) return;
+        skipNextWrite.current = true;
+        setState((s) => ({ ...s, sections: saved.sections }));
+      })
+      .catch(() => {})
+      .finally(() => { didRead.current = true; if (!off) setReady(true); });
+    const t = setTimeout(() => { if (!off) setReady(true); }, 150);
+    return () => { off = true; clearTimeout(t); };
+  }, []);
+
+  React.useEffect(() => {
+    if (!didRead.current) return;
+    if (skipNextWrite.current) { skipNextWrite.current = false; return; }
+    const t = setTimeout(() => {
+      window.omelette?.writeFile(DC_STATE_FILE, JSON.stringify({ sections: state.sections })).catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [state.sections]);
+
+  // Build registries synchronously from children so FocusOverlay can read
+  // them in the same render. Only direct DCSection > DCArtboard children are
+  // walked — wrapping them in other elements opts out of focus/reorder.
+  const registry = {};     // slotId -> { sectionId, artboard }
+  const sectionMeta = {};  // sectionId -> { title, subtitle, slotIds[] }
+  const sectionOrder = [];
+  React.Children.forEach(children, (sec) => {
+    if (!sec || sec.type !== DCSection) return;
+    const sid = sec.props.id ?? sec.props.title;
+    if (!sid) return;
+    sectionOrder.push(sid);
+    const persisted = state.sections[sid] || {};
+    const abs = [];
+    React.Children.forEach(sec.props.children, (ab) => {
+      if (!ab || ab.type !== DCArtboard) return;
+      const aid = ab.props.id ?? ab.props.label;
+      if (aid) abs.push([aid, ab]);
+    });
+    // hidden is scoped to one source revision — when the agent regenerates
+    // (artboard-ID set changes), prior deletes don't apply to new content.
+    const srcKey = abs.map(([k]) => k).join('\x1f');
+    const hidden = persisted.srcKey === srcKey ? (persisted.hidden || []) : [];
+    const srcIds = [];
+    abs.forEach(([aid, ab]) => {
+      if (hidden.includes(aid)) return;
+      registry[`${sid}/${aid}`] = { sectionId: sid, artboard: ab };
+      srcIds.push(aid);
+    });
+    const kept = (persisted.order || []).filter((k) => srcIds.includes(k));
+    sectionMeta[sid] = {
+      title: persisted.title ?? sec.props.title,
+      subtitle: sec.props.subtitle,
+      slotIds: [...kept, ...srcIds.filter((k) => !kept.includes(k))],
+    };
+  });
+
+  const api = React.useMemo(() => ({
+    state,
+    section: (id) => state.sections[id] || {},
+    patchSection: (id, p) => setState((s) => ({
+      ...s,
+      sections: { ...s.sections, [id]: { ...s.sections[id], ...(typeof p === 'function' ? p(s.sections[id] || {}) : p) } },
+    })),
+    setFocus: (slotId) => setState((s) => ({ ...s, focus: slotId })),
+  }), [state]);
+
+  // Esc exits focus; any outside pointerdown commits an in-progress rename.
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') api.setFocus(null); };
+    const onPd = (e) => {
+      const ae = document.activeElement;
+      if (ae && ae.isContentEditable && !ae.contains(e.target)) ae.blur();
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPd, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPd, true);
+    };
+  }, [api]);
+
+  return (
+    <DCCtx.Provider value={api}>
+      <DCViewport minScale={minScale} maxScale={maxScale} style={style}>{ready && children}</DCViewport>
+      {state.focus && registry[state.focus] && (
+        <DCFocusOverlay entry={registry[state.focus]} sectionMeta={sectionMeta} sectionOrder={sectionOrder} />
+      )}
+    </DCCtx.Provider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DCViewport — transform-based pan/zoom (internal)
+//
+// Input mapping (Figma-style):
+//   • trackpad pinch  → zoom   (ctrlKey wheel; Safari gesture* events)
+//   • trackpad scroll → pan    (two-finger)
+//   • mouse wheel     → zoom   (notched; distinguished from trackpad scroll)
+//   • middle-drag / primary-drag-on-bg → pan
+//
+// Transform state lives in a ref and is written straight to the DOM
+// (translate3d + will-change) so wheel ticks don't go through React —
+// keeps pans at 60fps on dense canvases.
+// ─────────────────────────────────────────────────────────────
+function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
+  const vpRef = React.useRef(null);
+  const worldRef = React.useRef(null);
+  const tf = React.useRef({ x: 0, y: 0, scale: 1 });
+  // Persist viewport across reloads so the user lands back where they were
+  // after an agent edit or browser refresh. The sandbox origin is already
+  // per-project; pathname keeps multiple canvas files in one project apart.
+  const tfKey = 'dc-viewport:' + location.pathname;
+  const saveT = React.useRef(0);
+
+  const lastPostedScale = React.useRef();
+  const apply = React.useCallback(() => {
+    const { x, y, scale } = tf.current;
+    const el = worldRef.current;
+    if (!el) return;
+    el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+    // Exposed for zoom-invariant chrome (labels, buttons, TweaksPanel).
+    el.style.setProperty('--dc-inv-zoom', String(1 / scale));
+    // Keep the host toolbar's % readout in sync with the canvas scale. Pan
+    // ticks leave scale unchanged — skip the cross-frame post for those.
+    if (lastPostedScale.current !== scale) {
+      lastPostedScale.current = scale;
+      window.parent.postMessage({ type: '__dc_zoom', scale }, '*');
+    }
+    clearTimeout(saveT.current);
+    saveT.current = setTimeout(() => {
+      try { localStorage.setItem(tfKey, JSON.stringify(tf.current)); } catch {}
+    }, 200);
+  }, [tfKey]);
+
+  React.useLayoutEffect(() => {
+    const flush = () => {
+      clearTimeout(saveT.current);
+      try { localStorage.setItem(tfKey, JSON.stringify(tf.current)); } catch {}
+    };
+    try {
+      const s = JSON.parse(localStorage.getItem(tfKey) || 'null');
+      if (s && Number.isFinite(s.x) && Number.isFinite(s.y) && Number.isFinite(s.scale)) {
+        tf.current = { x: s.x, y: s.y, scale: Math.min(maxScale, Math.max(minScale, s.scale)) };
+        apply();
+      }
+    } catch {}
+    // Flush on pagehide and unmount so a reload within the 200ms debounce
+    // window doesn't drop the last pan/zoom.
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, []);
+
+  React.useEffect(() => {
+    const vp = vpRef.current;
+    if (!vp) return;
+
+    const zoomAt = (cx, cy, factor) => {
+      const r = vp.getBoundingClientRect();
+      const px = cx - r.left, py = cy - r.top;
+      const t = tf.current;
+      const next = Math.min(maxScale, Math.max(minScale, t.scale * factor));
+      const k = next / t.scale;
+      // keep the world point under the cursor fixed
+      t.x = px - (px - t.x) * k;
+      t.y = py - (py - t.y) * k;
+      t.scale = next;
+      apply();
+    };
+
+    // Mouse-wheel vs trackpad-scroll heuristic. A physical wheel sends
+    // line-mode deltas (Firefox) or large integer pixel deltas with no X
+    // component (Chrome/Safari, typically multiples of 100/120). Trackpad
+    // two-finger scroll sends small/fractional pixel deltas, often with
+    // non-zero deltaX. ctrlKey is set by the browser for trackpad pinch.
+    const isMouseWheel = (e) =>
+      e.deltaMode !== 0 ||
+      (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      if (isGesturing) return; // Safari: gesture* owns the pinch — discard concurrent wheels
+      if ((e.ctrlKey || e.metaKey) && !isMouseWheel(e)) {
+        // trackpad pinch, or ctrl/cmd + smooth-scroll mouse. Notched
+        // wheels fall through to the fixed-step branch below.
+        zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+      } else if (isMouseWheel(e)) {
+        // notched mouse wheel — fixed-ratio step per click
+        zoomAt(e.clientX, e.clientY, Math.exp(-Math.sign(e.deltaY) * 0.18));
+      } else {
+        // trackpad two-finger scroll — pan
+        tf.current.x -= e.deltaX;
+        tf.current.y -= e.deltaY;
+        apply();
+      }
+    };
+
+    // Safari sends native gesture* events for trackpad pinch with a smooth
+    // e.scale; preferring these over the ctrl+wheel fallback gives a much
+    // better feel there. No-ops on other browsers. Safari also fires
+    // ctrlKey wheel events during the same pinch — isGesturing makes
+    // onWheel drop those entirely so they neither zoom nor pan.
+    let gsBase = 1;
+    let isGesturing = false;
+    const onGestureStart = (e) => { e.preventDefault(); isGesturing = true; gsBase = tf.current.scale; };
+    const onGestureChange = (e) => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, (gsBase * e.scale) / tf.current.scale);
+    };
+    const onGestureEnd = (e) => { e.preventDefault(); isGesturing = false; };
+
+    // Drag-pan: middle button anywhere, or primary button on canvas
+    // background (anything that isn't an artboard or an inline editor).
+    let drag = null;
+    const onPointerDown = (e) => {
+      const onBg = !e.target.closest('[data-dc-slot], .dc-editable');
+      if (!(e.button === 1 || (e.button === 0 && onBg))) return;
+      e.preventDefault();
+      vp.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, lx: e.clientX, ly: e.clientY };
+      vp.style.cursor = 'grabbing';
+    };
+    const onPointerMove = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      tf.current.x += e.clientX - drag.lx;
+      tf.current.y += e.clientY - drag.ly;
+      drag.lx = e.clientX; drag.ly = e.clientY;
+      apply();
+    };
+    const onPointerUp = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      vp.releasePointerCapture(e.pointerId);
+      drag = null;
+      vp.style.cursor = '';
+    };
+
+    // Host-driven zoom (toolbar % menu). Zooms around viewport centre so the
+    // visible midpoint stays fixed — matching the host's iframe-zoom feel.
+    const onHostMsg = (e) => {
+      const d = e.data;
+      if (d && d.type === '__dc_set_zoom' && typeof d.scale === 'number') {
+        const r = vp.getBoundingClientRect();
+        zoomAt(r.left + r.width / 2, r.top + r.height / 2, d.scale / tf.current.scale);
+      } else if (d && d.type === '__dc_probe') {
+        // Host's [readyGen] reset asks whether a canvas is present; it
+        // fires on the iframe's native 'load', which for canvases with
+        // images/fonts is after our mount-time announce, so re-announce.
+        // Clear the pan-tick guard so apply() re-posts the current scale
+        // even if it's unchanged — the host just reset dcScale to 1.
+        window.parent.postMessage({ type: '__dc_present' }, '*');
+        lastPostedScale.current = undefined;
+        apply();
+      }
+    };
+    window.addEventListener('message', onHostMsg);
+    // Announce canvas mode so the host toolbar proxies its % control here
+    // instead of scaling the iframe element (which would just shrink the
+    // viewport window of an infinite canvas). The apply() that follows emits
+    // the initial __dc_zoom so the toolbar % is correct before first pinch.
+    // lastPostedScale reset mirrors the __dc_probe handler: the layout
+    // effect's restore-path apply() may already have posted the restored
+    // scale (before __dc_present), so clear the guard to re-post it in order.
+    window.parent.postMessage({ type: '__dc_present' }, '*');
+    lastPostedScale.current = undefined;
+    apply();
+
+    vp.addEventListener('wheel', onWheel, { passive: false });
+    vp.addEventListener('gesturestart', onGestureStart, { passive: false });
+    vp.addEventListener('gesturechange', onGestureChange, { passive: false });
+    vp.addEventListener('gestureend', onGestureEnd, { passive: false });
+    vp.addEventListener('pointerdown', onPointerDown);
+    vp.addEventListener('pointermove', onPointerMove);
+    vp.addEventListener('pointerup', onPointerUp);
+    vp.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      window.removeEventListener('message', onHostMsg);
+      vp.removeEventListener('wheel', onWheel);
+      vp.removeEventListener('gesturestart', onGestureStart);
+      vp.removeEventListener('gesturechange', onGestureChange);
+      vp.removeEventListener('gestureend', onGestureEnd);
+      vp.removeEventListener('pointerdown', onPointerDown);
+      vp.removeEventListener('pointermove', onPointerMove);
+      vp.removeEventListener('pointerup', onPointerUp);
+      vp.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [apply, minScale, maxScale]);
+
+  const gridSvg = `url("data:image/svg+xml,%3Csvg width='120' height='120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M120 0H0v120' fill='none' stroke='${encodeURIComponent(DC.grid)}' stroke-width='1'/%3E%3C/svg%3E")`;
+  return (
+    <div
+      ref={vpRef}
+      className="design-canvas"
+      style={{
+        height: '100vh', width: '100vw',
+        background: DC.bg,
+        overflow: 'hidden',
+        overscrollBehavior: 'none',
+        touchAction: 'none',
+        position: 'relative',
+        fontFamily: DC.font,
+        boxSizing: 'border-box',
+        ...style,
+      }}
+    >
+      <div
+        ref={worldRef}
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          transformOrigin: '0 0',
+          willChange: 'transform',
+          width: 'max-content', minWidth: '100%',
+          minHeight: '100%',
+          padding: '60px 0 80px',
+        }}
+      >
+        <div style={{ position: 'absolute', inset: -6000, backgroundImage: gridSvg, backgroundSize: '120px 120px', pointerEvents: 'none', zIndex: -1 }} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DCSection — editable title + h-row of artboards in persisted order
+// ─────────────────────────────────────────────────────────────
+function DCSection({ id, title, subtitle, children, gap = 48 }) {
+  const ctx = React.useContext(DCCtx);
+  const sid = id ?? title;
+  const all = React.Children.toArray(children);
+  const artboards = all.filter((c) => c && c.type === DCArtboard);
+  const rest = all.filter((c) => !(c && c.type === DCArtboard));
+  const sec = (ctx && sid && ctx.section(sid)) || {};
+  // Must match DesignCanvas's srcKey computation exactly (it filters falsy
+  // IDs), or onDelete persists a srcKey that DesignCanvas never recognizes.
+  const allIds = artboards.map((a) => a.props.id ?? a.props.label).filter(Boolean);
+  const srcKey = allIds.join('\x1f');
+  const hidden = sec.srcKey === srcKey ? (sec.hidden || []) : [];
+  const srcOrder = allIds.filter((k) => !hidden.includes(k));
+
+  const order = React.useMemo(() => {
+    const kept = (sec.order || []).filter((k) => srcOrder.includes(k));
+    return [...kept, ...srcOrder.filter((k) => !kept.includes(k))];
+  }, [sec.order, srcOrder.join('|')]);
+
+  const byId = Object.fromEntries(artboards.map((a) => [a.props.id ?? a.props.label, a]));
+
+  // marginBottom counter-scales so the on-screen gap between sections stays
+  // constant — otherwise at low zoom the (world-space) gap collapses while
+  // the screen-constant sectionhead below it doesn't, and the title reads as
+  // belonging to the section above. paddingBottom below is just enough for
+  // the 24px artboard-header (abs-positioned above each card) plus ~8px, so
+  // the title sits tight against its own row at every zoom.
+  return (
+    <div data-dc-section={sid}
+      style={{ marginBottom: 'calc(80px * var(--dc-inv-zoom, 1))', position: 'relative' }}>
+      <div style={{ padding: '0 60px' }}>
+        <div className="dc-sectionhead" style={{ paddingBottom: 36 }}>
+          <DCEditable tag="div" value={sec.title ?? title}
+            onChange={(v) => ctx && sid && ctx.patchSection(sid, { title: v })}
+            style={{ fontSize: 28, fontWeight: 600, color: DC.title, letterSpacing: -0.4, marginBottom: 6, display: 'inline-block' }} />
+          {subtitle && <div style={{ fontSize: 16, color: DC.subtitle }}>{subtitle}</div>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap, padding: '0 60px', alignItems: 'flex-start', width: 'max-content' }}>
+        {order.map((k) => (
+          <DCArtboardFrame key={k} sectionId={sid} artboard={byId[k]} order={order}
+            label={(sec.labels || {})[k] ?? byId[k].props.label}
+            onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
+            onReorder={(next) => ctx && ctx.patchSection(sid, { order: next })}
+            onDelete={() => ctx && ctx.patchSection(sid, (x) => ({
+              hidden: [...(x.srcKey === srcKey ? (x.hidden || []) : []), k],
+              srcKey,
+            }))}
+            onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
+        ))}
+      </div>
+      {rest}
+    </div>
+  );
+}
+
+// DCArtboard — marker; rendered by DCArtboardFrame via DCSection.
+function DCArtboard() { return null; }
+
+// Per-artboard export (kind: 'png' | 'html'). Both paths share the same
+// self-contained clone: computed styles baked in, @font-face / <img> /
+// inline-style background-image urls inlined as data URIs. PNG wraps the
+// clone in foreignObject→canvas at 3× the artboard's natural width×height
+// (same pipeline the host uses for page captures); HTML wraps it in a
+// minimal standalone document. Both are independent of viewport zoom.
+async function dcExport(node, w, h, name, kind) {
+  try { await document.fonts.ready; } catch {}
+  const toDataURL = (url) => fetch(url).then((r) => r.blob()).then((b) => new Promise((res) => {
+    const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(url); fr.readAsDataURL(b);
+  })).catch(() => url);
+
+  // Collect @font-face rules. ss.cssRules throws SecurityError on
+  // cross-origin sheets (e.g. fonts.googleapis.com) — in that case fetch
+  // the CSS text directly (those endpoints send ACAO:*) and regex-extract
+  // the blocks. @import and @media/@supports are walked so nested
+  // @font-face rules aren't missed.
+  const fontRules = [], pending = [], seen = new Set();
+  const scrapeCss = (href) => {
+    if (seen.has(href)) return; seen.add(href);
+    pending.push(fetch(href).then((r) => r.text()).then((css) => {
+      for (const m of css.match(/@font-face\s*{[^}]*}/g) || []) fontRules.push({ css: m, base: href });
+      for (const m of css.matchAll(/@import\s+(?:url\()?['"]?([^'")\s;]+)/g))
+        scrapeCss(new URL(m[1], href).href);
+    }).catch(() => {}));
+  };
+  const walk = (rules, base) => {
+    for (const r of rules) {
+      if (r.type === CSSRule.FONT_FACE_RULE) fontRules.push({ css: r.cssText, base });
+      else if (r.type === CSSRule.IMPORT_RULE && r.styleSheet) {
+        const ibase = r.styleSheet.href || base;
+        try { walk(r.styleSheet.cssRules, ibase); } catch { scrapeCss(ibase); }
+      } else if (r.cssRules) walk(r.cssRules, base);
+    }
+  };
+  for (const ss of document.styleSheets) {
+    const base = ss.href || location.href;
+    try { walk(ss.cssRules, base); } catch { if (ss.href) scrapeCss(ss.href); }
+  }
+  while (pending.length) await pending.shift();
+  const fontCss = (await Promise.all(fontRules.map(async (rule) => {
+    let out = rule.css, m; const re = /url\((['"]?)([^'")]+)\1\)/g;
+    while ((m = re.exec(rule.css))) {
+      if (m[2].indexOf('data:') === 0) continue;
+      let abs; try { abs = new URL(m[2], rule.base).href; } catch { continue; }
+      out = out.split(m[0]).join('url("' + await toDataURL(abs) + '")');
+    }
+    return out;
+  }))).join('\n');
+
+  const cloneStyled = (src) => {
+    if (src.nodeType === 8 || (src.nodeType === 1 && src.tagName === 'SCRIPT')) return document.createTextNode('');
+    const dst = src.cloneNode(false);
+    if (src.nodeType === 1) {
+      const cs = getComputedStyle(src); let txt = '';
+      for (let i = 0; i < cs.length; i++) txt += cs[i] + ':' + cs.getPropertyValue(cs[i]) + ';';
+      dst.setAttribute('style', txt + 'animation:none;transition:none;');
+      if (src.tagName === 'CANVAS') try { const im = document.createElement('img'); im.src = src.toDataURL(); im.setAttribute('style', txt); return im; } catch {}
+    }
+    for (let c = src.firstChild; c; c = c.nextSibling) dst.appendChild(cloneStyled(c));
+    return dst;
+  };
+  const clone = cloneStyled(node);
+  clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  // Drop the card's own shadow/radius so the export is a flush w×h rect;
+  // the artboard's own background (if any) is already in the computed style.
+  clone.style.boxShadow = 'none'; clone.style.borderRadius = '0';
+
+  const jobs = [];
+  clone.querySelectorAll('img').forEach((el) => {
+    const s = el.getAttribute('src');
+    if (s && s.indexOf('data:') !== 0) jobs.push(toDataURL(el.src).then((d) => el.setAttribute('src', d)));
+  });
+  [clone, ...clone.querySelectorAll('*')].forEach((el) => {
+    const bg = el.style.backgroundImage; if (!bg) return;
+    let m; const re = /url\(["']?([^"')]+)["']?\)/g;
+    while ((m = re.exec(bg))) {
+      const tok = m[0], url = m[1];
+      if (url.indexOf('data:') === 0) continue;
+      jobs.push(toDataURL(url).then((d) => { el.style.backgroundImage = el.style.backgroundImage.split(tok).join('url("' + d + '")'); }));
+    }
+  });
+  await Promise.all(jobs);
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const save = (blob, ext) => {
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name + '.' + ext; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  if (kind === 'html') {
+    const html = '<!doctype html><html><head><meta charset="utf-8"><title>' + name + '</title>' +
+      (fontCss ? '<style>' + fontCss + '</style>' : '') +
+      '</head><body style="margin:0">' + xml + '</body></html>';
+    return save(new Blob([html], { type: 'text/html' }), 'html');
+  }
+
+  // PNG: the SVG's own width/height must be the output resolution — an
+  // <img>-loaded SVG rasterizes at its intrinsic size, so sizing it at 1×
+  // and ctx.scale()-ing up would just upscale a 1× bitmap. viewBox maps the
+  // w×h foreignObject onto the px·w × px·h SVG canvas so the browser renders
+  // the HTML at full resolution.
+  const px = 3;
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w * px + '" height="' + h * px +
+    '" viewBox="0 0 ' + w + ' ' + h + '"><foreignObject width="' + w + '" height="' + h + '">' +
+    (fontCss ? '<style><![CDATA[' + fontCss + ']]></style>' : '') + xml + '</foreignObject></svg>';
+  const img = new Image();
+  await new Promise((res, rej) => {
+    img.onload = res; img.onerror = () => rej(new Error('svg load failed'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+  const cv = document.createElement('canvas');
+  cv.width = w * px; cv.height = h * px;
+  cv.getContext('2d').drawImage(img, 0, 0);
+  cv.toBlob((blob) => save(blob, 'png'), 'image/png');
+}
+
+function DCArtboardFrame({ sectionId, artboard, label, order, onRename, onReorder, onFocus, onDelete }) {
+  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {} } = artboard.props;
+  const id = rawId ?? rawLabel;
+  const ref = React.useRef(null);
+  const cardRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
+
+  // ⋯ menu: close on any outside pointerdown. Two-click delete lives inside
+  // the menu — first click arms the row, second commits; closing disarms.
+  React.useEffect(() => {
+    if (!menuOpen) { setConfirming(false); return; }
+    const off = (e) => { if (!menuRef.current || !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('pointerdown', off, true);
+    return () => document.removeEventListener('pointerdown', off, true);
+  }, [menuOpen]);
+
+  const doExport = (kind) => {
+    setMenuOpen(false);
+    if (!cardRef.current) return;
+    const name = String(label || id || 'artboard').replace(/[^\w\s.-]+/g, '_');
+    dcExport(cardRef.current, width, height, name, kind)
+      .catch((e) => console.error('[design-canvas] export failed:', e));
+  };
+
+  // Live drag-reorder: dragged card sticks to cursor; siblings slide into
+  // their would-be slots in real time via transforms. DOM order only
+  // changes on drop.
+  const onGripDown = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const me = ref.current;
+    // translateX is applied in local (pre-scale) space but pointer deltas and
+    // getBoundingClientRect().left are screen-space — divide by the viewport's
+    // current scale so the dragged card tracks the cursor at any zoom level.
+    const scale = me.getBoundingClientRect().width / me.offsetWidth || 1;
+    const peers = Array.from(document.querySelectorAll(`[data-dc-section="${sectionId}"] [data-dc-slot]`));
+    const homes = peers.map((el) => ({ el, id: el.dataset.dcSlot, x: el.getBoundingClientRect().left }));
+    const slotXs = homes.map((h) => h.x);
+    const startIdx = order.indexOf(id);
+    const startX = e.clientX;
+    let liveOrder = order.slice();
+    me.classList.add('dc-dragging');
+
+    const layout = () => {
+      for (const h of homes) {
+        if (h.id === id) continue;
+        const slot = liveOrder.indexOf(h.id);
+        h.el.style.transform = `translateX(${(slotXs[slot] - h.x) / scale}px)`;
+      }
+    };
+
+    const move = (ev) => {
+      const dx = ev.clientX - startX;
+      me.style.transform = `translateX(${dx / scale}px)`;
+      const cur = homes[startIdx].x + dx;
+      let nearest = 0, best = Infinity;
+      for (let i = 0; i < slotXs.length; i++) {
+        const d = Math.abs(slotXs[i] - cur);
+        if (d < best) { best = d; nearest = i; }
+      }
+      if (liveOrder.indexOf(id) !== nearest) {
+        liveOrder = order.filter((k) => k !== id);
+        liveOrder.splice(nearest, 0, id);
+        layout();
+      }
+    };
+
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      const finalSlot = liveOrder.indexOf(id);
+      me.classList.remove('dc-dragging');
+      me.style.transform = `translateX(${(slotXs[finalSlot] - homes[startIdx].x) / scale}px)`;
+      // After the settle transition, kill transitions + clear transforms +
+      // commit the reorder in the same frame so there's no visual snap-back.
+      setTimeout(() => {
+        for (const h of homes) { h.el.style.transition = 'none'; h.el.style.transform = ''; }
+        if (liveOrder.join('|') !== order.join('|')) onReorder(liveOrder);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          for (const h of homes) h.el.style.transition = '';
+        }));
+      }, 180);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  };
+
+  return (
+    <div ref={ref} data-dc-slot={id} style={{ position: 'relative', flexShrink: 0 }}>
+      <div className="dc-header" style={{ color: DC.label }} onPointerDown={(e) => e.stopPropagation()}>
+        <div className="dc-labelrow">
+          <div className="dc-grip" onPointerDown={onGripDown} title="Drag to reorder">
+            <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor"><circle cx="2" cy="2" r="1.1"/><circle cx="7" cy="2" r="1.1"/><circle cx="2" cy="6.5" r="1.1"/><circle cx="7" cy="6.5" r="1.1"/><circle cx="2" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg>
+          </div>
+          <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
+            <DCEditable value={label} onChange={onRename} onClick={(e) => e.stopPropagation()}
+              style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1 }} />
+          </div>
+        </div>
+        <div className="dc-btns">
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button className="dc-kebab" title="More" onClick={() => setMenuOpen((o) => !o)}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><circle cx="2.5" cy="6" r="1.1"/><circle cx="6" cy="6" r="1.1"/><circle cx="9.5" cy="6" r="1.1"/></svg>
+            </button>
+            {menuOpen && (
+              <div className="dc-menu" onPointerDown={(e) => e.stopPropagation()}>
+                <button onClick={() => doExport('png')}>Download PNG</button>
+                <button onClick={() => doExport('html')}>Download HTML</button>
+                <hr />
+                <button className="dc-danger"
+                  onClick={() => { if (confirming) { setMenuOpen(false); onDelete(); } else setConfirming(true); }}>
+                  {confirming ? 'Click again to delete' : 'Delete'}
+                </button>
+              </div>
+            )}
+          </div>
+          <button className="dc-expand" onClick={onFocus} title="Focus">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M7 1h4v4M5 11H1V7M11 1L7.5 4.5M1 11l3.5-3.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div ref={cardRef} className="dc-card"
+        style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: '#fff', ...style }}>
+        {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Inline rename — commits on blur or Enter.
+function DCEditable({ value, onChange, style, tag = 'span', onClick }) {
+  const T = tag;
+  return (
+    <T className="dc-editable" contentEditable suppressContentEditableWarning
+      onClick={onClick}
+      onPointerDown={(e) => e.stopPropagation()}
+      onBlur={(e) => onChange && onChange(e.currentTarget.textContent)}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+      style={style}>{value}</T>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Focus mode — overlay one artboard; ←/→ within section, ↑/↓ across
+// sections, Esc or backdrop click to exit.
+// ─────────────────────────────────────────────────────────────
+function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
+  const ctx = React.useContext(DCCtx);
+  const { sectionId, artboard } = entry;
+  const sec = ctx.section(sectionId);
+  const meta = sectionMeta[sectionId];
+  const peers = meta.slotIds;
+  const aid = artboard.props.id ?? artboard.props.label;
+  const idx = peers.indexOf(aid);
+  const secIdx = sectionOrder.indexOf(sectionId);
+
+  const go = (d) => { const n = peers[(idx + d + peers.length) % peers.length]; if (n) ctx.setFocus(`${sectionId}/${n}`); };
+  const goSection = (d) => {
+    // Sections whose artboards are all deleted have slotIds:[] — step past
+    // them to the next non-empty section so ↑/↓ doesn't dead-end.
+    const n = sectionOrder.length;
+    for (let i = 1; i < n; i++) {
+      const ns = sectionOrder[(((secIdx + d * i) % n) + n) % n];
+      const first = sectionMeta[ns] && sectionMeta[ns].slotIds[0];
+      if (first) { ctx.setFocus(`${ns}/${first}`); return; }
+    }
+  };
+
+  React.useEffect(() => {
+    const k = (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); goSection(-1); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); goSection(1); }
+    };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  });
+
+  const { width = 260, height = 480, children } = artboard.props;
+  const [vp, setVp] = React.useState({ w: window.innerWidth, h: window.innerHeight });
+  React.useEffect(() => { const r = () => setVp({ w: window.innerWidth, h: window.innerHeight }); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r); }, []);
+  const scale = Math.max(0.1, Math.min((vp.w - 200) / width, (vp.h - 260) / height, 2));
+
+  const [ddOpen, setDd] = React.useState(false);
+  const Arrow = ({ dir, onClick }) => (
+    <button onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{ position: 'absolute', top: '50%', [dir]: 28, transform: 'translateY(-50%)',
+        border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.9)',
+        width: 44, height: 44, borderRadius: 22, fontSize: 18, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.18)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.08)')}>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d={dir === 'left' ? 'M11 3L5 9l6 6' : 'M7 3l6 6-6 6'} /></svg>
+    </button>
+  );
+
+  // Portal to body so position:fixed is the real viewport regardless of any
+  // transform on DesignCanvas's ancestors (including the canvas zoom itself).
+  return ReactDOM.createPortal(
+    <div onClick={() => ctx.setFocus(null)}
+      onWheel={(e) => e.preventDefault()}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(24,20,16,.6)', backdropFilter: 'blur(14px)',
+        fontFamily: DC.font, color: '#fff' }}>
+
+      {/* top bar: section dropdown (left) · close (right) */}
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 72, display: 'flex', alignItems: 'flex-start', padding: '16px 20px 0', gap: 16 }}>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setDd((o) => !o)}
+            style={{ border: 'none', background: 'transparent', color: '#fff', cursor: 'pointer', padding: '6px 8px',
+              borderRadius: 6, textAlign: 'left', fontFamily: 'inherit' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: -0.3 }}>{meta.title}</span>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ opacity: .7 }}><path d="M2 4l3.5 3.5L9 4"/></svg>
+            </span>
+            {meta.subtitle && <span style={{ display: 'block', fontSize: 13, opacity: .6, fontWeight: 400, marginTop: 2 }}>{meta.subtitle}</span>}
+          </button>
+          {ddOpen && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#2a251f', borderRadius: 8,
+              boxShadow: '0 8px 32px rgba(0,0,0,.4)', padding: 4, minWidth: 200, zIndex: 10 }}>
+              {sectionOrder.filter((sid) => sectionMeta[sid].slotIds.length).map((sid) => (
+                <button key={sid} onClick={() => { setDd(false); const f = sectionMeta[sid].slotIds[0]; if (f) ctx.setFocus(`${sid}/${f}`); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                    background: sid === sectionId ? 'rgba(255,255,255,.1)' : 'transparent', color: '#fff',
+                    padding: '8px 12px', borderRadius: 5, fontSize: 14, fontWeight: sid === sectionId ? 600 : 400, fontFamily: 'inherit' }}>
+                  {sectionMeta[sid].title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => ctx.setFocus(null)}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.12)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          style={{ border: 'none', background: 'transparent', color: 'rgba(255,255,255,.7)', width: 32, height: 32,
+            borderRadius: 16, fontSize: 20, cursor: 'pointer', lineHeight: 1, transition: 'background .12s' }}>×</button>
+      </div>
+
+      {/* card centered, label + index below — only the card itself stops
+          propagation so any backdrop click (including the margins around
+          the card) exits focus */}
+      <div
+        style={{ position: 'absolute', top: 64, bottom: 56, left: 100, right: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: width * scale, height: height * scale, position: 'relative' }}>
+          <div style={{ width, height, transform: `scale(${scale})`, transformOrigin: 'top left', background: '#fff', borderRadius: 2, overflow: 'hidden',
+            boxShadow: '0 20px 80px rgba(0,0,0,.4)' }}>
+            {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb' }}>{aid}</div>}
+          </div>
+        </div>
+        <div onClick={(e) => e.stopPropagation()} style={{ fontSize: 14, fontWeight: 500, opacity: .85, textAlign: 'center' }}>
+          {(sec.labels || {})[aid] ?? artboard.props.label}
+          <span style={{ opacity: .5, marginLeft: 10, fontVariantNumeric: 'tabular-nums' }}>{idx + 1} / {peers.length}</span>
+        </div>
+      </div>
+
+      <Arrow dir="left" onClick={() => go(-1)} />
+      <Arrow dir="right" onClick={() => go(1)} />
+
+      {/* dots */}
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 8 }}>
+        {peers.map((p, i) => (
+          <button key={p} onClick={() => ctx.setFocus(`${sectionId}/${p}`)}
+            style={{ border: 'none', padding: 0, cursor: 'pointer', width: 6, height: 6, borderRadius: 3,
+              background: i === idx ? '#fff' : 'rgba(255,255,255,.3)' }} />
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Post-it — absolute-positioned sticky note
+// ─────────────────────────────────────────────────────────────
+function DCPostIt({ children, top, left, right, bottom, rotate = -2, width = 180 }) {
+  return (
+    <div style={{
+      position: 'absolute', top, left, right, bottom, width,
+      background: DC.postitBg, padding: '14px 16px',
+      fontFamily: '"Comic Sans MS", "Marker Felt", "Segoe Print", cursive',
+      fontSize: 14, lineHeight: 1.4, color: DC.postitText,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)',
+      transform: `rotate(${rotate}deg)`,
+      zIndex: 5,
+    }}>{children}</div>
+  );
+}
+
+Object.assign(window, { DesignCanvas, DCSection, DCArtboard, DCPostIt });
+
+
+</script>
+<script type="text/babel">
+const {useState, useMemo} = React;
+
+/* ─────────────────────────── DATA ─────────────────────────── */
+const CONTACT = {
+  id:'kimtehno',
+  name:'ООО «Кимтехно»',
+  city:'Димитровград',
+  tagline:'Серийная мехобработка · паллетные фрезерные центры',
+  pinned:true,
+  status:'active',
+  roles:['cooperator','supplier'], // cooperator | supplier | client
+  rating:{price:4.2, quality:4.7, speed:3.9, overall:4.3, count:18},
+  load:62, // % загрузка цеха
+  manager:{name:'Алексей Громов', tg:'@kimtehno_ag', phone:'+7 902 245-11-08'},
+  address:'г. Димитровград, ул. Промышленная 12А',
+  inn:'7325116842',
+  tags:['Токарка ЧПУ','Фрезеровка','Паллетный центр','Серия 50–5000','Чугун','Сталь','Нержавейка'],
+  ops:['Токарная обработка','Фрезеровка 3-осевая','Фрезеровка 5-осевая','Расточка','Контроль КИМ'],
+  machines:[
+    {model:'DMG MORI NLX 2500', kind:'Токарный ЧПУ', envelope:'Ø380×1000', count:2},
+    {model:'Haas VF-4SS', kind:'Вертикальный ОЦ', envelope:'1270×508×635', count:3},
+    {model:'Mazak HCN-5000', kind:'Горизонтальный ОЦ + паллет', envelope:'730×730×880', count:1},
+    {model:'Okuma Genos M460-VE', kind:'Вертикальный ОЦ', envelope:'1050×560×460', count:1},
+  ],
+  envelope:{x:1270, y:730, z:880, weightKg:300},
+  precision:{tol:'IT7', ra:'Ra 0.8'},
+  certs:['ISO 9001:2015','СРПП ВТ'],
+  minBatch:50,
+  vat:'с НДС',
+  deals:[
+    {date:'2026-04-22', kind:'invoice', title:'Серия валов 40Х13 Ø32 L210', qty:'480 шт', sum:382400, note:'отгрузка в срок'},
+    {date:'2026-03-11', kind:'invoice', title:'Корпус фрезерный, чугун СЧ20', qty:'60 шт',  sum:214800},
+    {date:'2026-02-04', kind:'note',    title:'Визит на производство. Сняли цех — 4 ОЦ Haas в работе.'},
+    {date:'2025-12-18', kind:'invoice', title:'Втулки бронза БрАЖ', qty:'1200 шт', sum:96000, note:'+3 дня к сроку'},
+    {date:'2025-11-02', kind:'price',   title:'Получен прайс на услуги токарки/фрезы'},
+    {date:'2025-09-14', kind:'invoice', title:'Партия фланцев Ст45', qty:'220 шт', sum:178400},
+  ],
+  totalDeals:31, totalSum:4612000, lastDealDays:19,
+  photos:['cex-1','cex-2','cex-3','part-1'],
+};
+
+/* ─────────────────── PRIMITIVES (industrial mono) ─────────────────── */
+const cardStyles = {
+  screen:{
+    width:'100%', height:'100%', background:'#0c0c0c', color:'#e8e8e8',
+    fontFamily:'Manrope, system-ui, sans-serif', overflowY:'auto',
+    paddingBottom:90, boxSizing:'border-box', position:'relative',
+  },
+  header:{
+    position:'sticky', top:0, zIndex:5,
+    padding:'14px 16px 10px',
+    background:'linear-gradient(180deg,#0c0c0c 0%, #0c0c0cee 70%, transparent 100%)',
+    display:'flex', alignItems:'center', justifyContent:'space-between',
+  },
+  iconBtn:{
+    width:36, height:36, borderRadius:10, border:'1px solid #222',
+    background:'#141414', display:'grid', placeItems:'center', color:'#cfcfcf', cursor:'pointer',
+  },
+  hero:{
+    padding:'8px 16px 18px', position:'relative',
+  },
+  cover:{
+    height:140, borderRadius:16, overflow:'hidden', position:'relative',
+    background:'#141414', border:'1px solid #1f1f1f',
+  },
+  coverGrid:{
+    position:'absolute', inset:0,
+    backgroundImage:'linear-gradient(#1a1a1a 1px, transparent 1px), linear-gradient(90deg,#1a1a1a 1px, transparent 1px)',
+    backgroundSize:'24px 24px',
+    maskImage:'radial-gradient(ellipse at 30% 40%, #000 35%, transparent 80%)',
+  },
+  hatch:{
+    position:'absolute', inset:0,
+    backgroundImage:'repeating-linear-gradient(135deg, transparent 0 11px, #1c1c1c 11px 12px)',
+    opacity:.55,
+  },
+  avatar:{
+    position:'absolute', left:18, bottom:-22, width:62, height:62, borderRadius:14,
+    background:'#000', border:'1px solid #2a2a2a',
+    display:'grid', placeItems:'center',
+    boxShadow:'0 8px 20px rgba(0,0,0,.6)',
+  },
+  nameWrap:{ padding:'30px 16px 0' },
+  pin:{
+    fontSize:10, letterSpacing:'.16em', color:'#8c8c8c', textTransform:'uppercase',
+    display:'inline-flex', gap:6, alignItems:'center',
+    padding:'4px 8px', border:'1px solid #2a2a2a', borderRadius:999, background:'#111',
+  },
+  h1:{margin:'10px 0 4px', fontSize:26, fontWeight:700, letterSpacing:'-.01em', lineHeight:1.1},
+  sub:{margin:0, color:'#9a9a9a', fontSize:13, lineHeight:1.4},
+  metaRow:{
+    display:'flex', gap:6, flexWrap:'wrap', marginTop:12,
+  },
+  chip:{
+    fontSize:11, padding:'5px 9px', borderRadius:999, border:'1px solid #262626',
+    background:'#141414', color:'#cfcfcf', letterSpacing:'.02em',
+  },
+  chipDot:{display:'inline-block', width:6, height:6, borderRadius:99, marginRight:6, verticalAlign:1},
+  bigBar:{
+    margin:'18px 16px 0', padding:'14px', border:'1px solid #1f1f1f', borderRadius:14,
+    background:'linear-gradient(180deg,#121212,#0e0e0e)',
+    display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10,
+  },
+  stat:{display:'flex', flexDirection:'column', gap:3},
+  statLabel:{fontSize:10, letterSpacing:'.14em', color:'#666', textTransform:'uppercase'},
+  statValue:{fontSize:16, fontWeight:600, color:'#e8e8e8'},
+  statHint:{fontSize:11, color:'#7a7a7a'},
+  actions:{
+    margin:'16px 16px 0',
+    display:'grid', gridTemplateColumns:'1fr 1fr', gap:8,
+  },
+  btn:{
+    padding:'12px 14px', borderRadius:12, border:'1px solid #262626', background:'#141414',
+    color:'#e8e8e8', fontSize:13, fontWeight:500, cursor:'pointer',
+    display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+    fontFamily:'Manrope, system-ui, sans-serif',
+  },
+  btnPrimary:{
+    padding:'12px 14px', borderRadius:12, border:'1px solid #e8e8e8', background:'#e8e8e8',
+    color:'#0c0c0c', fontSize:13, fontWeight:600, cursor:'pointer',
+    display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+  },
+  sectionsWrap:{ marginTop:8 },
+};
+
+/* SVG icons (тонкие линии — индустриальный стиль) */
+const Icon = ({name, size=18, stroke='#cfcfcf'}) => {
+  const p = {width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke, strokeWidth:1.4, strokeLinecap:'round', strokeLinejoin:'round'};
+  switch(name){
+    case 'back':   return <svg {...p}><path d="M15 6l-6 6 6 6"/></svg>;
+    case 'more':   return <svg {...p}><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>;
+    case 'pin':    return <svg {...p}><path d="M12 17v5M9 3h6l-1 4 3 4H7l3-4z"/></svg>;
+    case 'phone':  return <svg {...p}><path d="M5 4h4l2 5-3 2a12 12 0 006 6l2-3 5 2v4a2 2 0 01-2 2A17 17 0 013 6a2 2 0 012-2z"/></svg>;
+    case 'tg':     return <svg {...p}><path d="M3 11l18-7-3 17-7-4-4 4v-6l11-9-15 5z"/></svg>;
+    case 'mail':   return <svg {...p}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>;
+    case 'price':  return <svg {...p}><path d="M4 7h16v10H4zM4 11h16M8 15h2"/></svg>;
+    case 'star':   return <svg {...p}><path d="M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"/></svg>;
+    case 'pen':    return <svg {...p}><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/></svg>;
+    case 'trash':  return <svg {...p}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>;
+    case 'chevron':return <svg {...p}><path d="M9 6l6 6-6 6"/></svg>;
+    case 'down':   return <svg {...p}><path d="M6 9l6 6 6-6"/></svg>;
+    case 'pinFill':return <svg {...p} fill={stroke}><path d="M12 17v5M9 3h6l-1 4 3 4H7l3-4z"/></svg>;
+    case 'mapPin': return <svg {...p}><path d="M12 22s-7-7-7-12a7 7 0 1114 0c0 5-7 12-7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>;
+    case 'gauge':  return <svg {...p}><path d="M3 14a9 9 0 0118 0M12 14l5-3"/></svg>;
+    case 'doc':    return <svg {...p}><path d="M7 3h8l4 4v14H7zM15 3v4h4"/></svg>;
+    case 'cnc':    return <svg {...p}><path d="M3 10h18v8H3zM7 10V6h10v4M9 14h6"/></svg>;
+    case 'shield': return <svg {...p}><path d="M12 3l8 3v5c0 5-4 9-8 10-4-1-8-5-8-10V6z"/></svg>;
+    case 'history':return <svg {...p}><path d="M3 12a9 9 0 109-9 9 9 0 00-7 3M3 4v4h4M12 8v5l3 2"/></svg>;
+    case 'camera': return <svg {...p}><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>;
+    case 'send':   return <svg {...p}><path d="M3 12l18-8-7 18-3-7-8-3z"/></svg>;
+    case 'check':  return <svg {...p}><path d="M4 12l5 5L20 6"/></svg>;
+    case 'tags':   return <svg {...p}><path d="M4 4h8l8 8-8 8-8-8z"/><circle cx="8" cy="8" r="1.4"/></svg>;
+    case 'list':   return <svg {...p}><path d="M8 6h13M8 12h13M8 18h13M4 6h.01M4 12h.01M4 18h.01"/></svg>;
+    case 'sliders':return <svg {...p}><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="#0c0c0c"/><circle cx="15" cy="12" r="2" fill="#0c0c0c"/><circle cx="7" cy="18" r="2" fill="#0c0c0c"/></svg>;
+    case 'search': return <svg {...p}><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>;
+    default: return null;
+  }
+};
+
+/* SVG лого Кимтехно — заглушка в стиле логотипа METALLBOT */
+const ContactLogo = () => (
+  <svg width="36" height="36" viewBox="0 0 36 36">
+    <line x1="6" y1="6" x2="18" y2="30" stroke="#e8e8e8" strokeWidth="2" strokeLinecap="round"/>
+    <line x1="12" y1="6" x2="24" y2="30" stroke="#888" strokeWidth="1.4" strokeLinecap="round"/>
+    <line x1="24" y1="8" x2="8" y2="30" stroke="#444" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+);
+
+/* ─────────────────── ACCORDION SECTION ─────────────────── */
+const Section = ({icon, title, badge, defaultOpen=false, children}) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{margin:'10px 16px 0', border:'1px solid #1f1f1f', borderRadius:14, background:'#0f0f0f', overflow:'hidden'}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{
+        width:'100%', display:'flex', alignItems:'center', gap:12, padding:'14px 16px',
+        background:'transparent', border:0, color:'#e8e8e8', cursor:'pointer', textAlign:'left',
+        fontFamily:'Manrope, system-ui, sans-serif',
+      }}>
+        <Icon name={icon} size={18} stroke="#9a9a9a"/>
+        <span style={{flex:1, fontSize:14, fontWeight:600, letterSpacing:'.01em'}}>{title}</span>
+        {badge && <span style={{fontSize:10, padding:'3px 8px', borderRadius:999, background:'#1a1a1a', color:'#9a9a9a', letterSpacing:'.08em'}} className="mono">{badge}</span>}
+        <span style={{transform:`rotate(${open?180:0}deg)`, transition:'transform .2s'}}><Icon name="down" size={16} stroke="#666"/></span>
+      </button>
+      {open && <div style={{padding:'0 16px 16px', borderTop:'1px solid #1a1a1a'}}>{children}</div>}
+    </div>
+  );
+};
+
+/* ─────────────────── RATING BAR ─────────────────── */
+const RatingBar = ({label, value}) => (
+  <div style={{display:'grid', gridTemplateColumns:'90px 1fr 36px', gap:10, alignItems:'center', padding:'8px 0'}}>
+    <div style={{fontSize:12, color:'#9a9a9a'}}>{label}</div>
+    <div style={{height:6, background:'#1a1a1a', borderRadius:99, overflow:'hidden', position:'relative'}}>
+      <div style={{position:'absolute',inset:0,width:`${value*20}%`,background:'linear-gradient(90deg,#666,#e8e8e8)'}}/>
+    </div>
+    <div className="mono" style={{fontSize:12, color:'#e8e8e8', textAlign:'right'}}>{value.toFixed(1)}</div>
+  </div>
+);
+
+/* ─────────────────── PHOTO STRIP ─────────────────── */
+const PhotoStrip = () => (
+  <div style={{display:'flex', gap:8, overflowX:'auto', padding:'4px 0 8px', margin:'8px 0 4px', scrollbarWidth:'none'}}>
+    {[1,2,3,4].map(i=>(
+      <div key={i} style={{
+        minWidth:120, height:90, borderRadius:10, background:'#161616',
+        border:'1px solid #232323', position:'relative', overflow:'hidden', flex:'0 0 auto',
+      }}>
+        <div style={{position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(45deg, transparent 0 9px, #1f1f1f 9px 10px)', opacity:.6}}/>
+        <div style={{position:'absolute', left:8, bottom:6, fontSize:10, color:'#888'}} className="mono">CEX_0{i}.JPG</div>
+        <div style={{position:'absolute', right:8, top:6}}><Icon name="camera" size={12} stroke="#555"/></div>
+      </div>
+    ))}
+    <div style={{
+      minWidth:80, height:90, borderRadius:10, border:'1px dashed #2a2a2a', background:'#0f0f0f',
+      display:'grid', placeItems:'center', color:'#666', fontSize:11, flex:'0 0 auto'
+    }}>+ фото</div>
+  </div>
+);
+
+/* ─────────────────── MACHINE ROW ─────────────────── */
+const Machine = ({m}) => (
+  <div style={{display:'grid', gridTemplateColumns:'1fr auto', gap:8, padding:'10px 0', borderTop:'1px solid #1a1a1a'}}>
+    <div>
+      <div style={{fontSize:13, fontWeight:600, color:'#e8e8e8'}}>{m.model}</div>
+      <div style={{fontSize:11, color:'#7a7a7a', marginTop:2}}>{m.kind} · {m.envelope} мм</div>
+    </div>
+    <div className="mono" style={{fontSize:11, color:'#9a9a9a', alignSelf:'center'}}>× {m.count}</div>
+  </div>
+);
+
+/* ─────────────────── DEAL ROW ─────────────────── */
+const Deal = ({d}) => {
+  const kindMap = {invoice:'СЧ', price:'ПРАЙС', note:'ЗАМЕТКА'};
+  const kindColor = {invoice:'#e8e8e8', price:'#d4a72c', note:'#6e9bd1'}[d.kind];
+  return (
+    <div style={{display:'grid', gridTemplateColumns:'58px 1fr auto', gap:10, padding:'12px 0', borderTop:'1px solid #1a1a1a'}}>
+      <div className="mono" style={{fontSize:10, color:'#666', paddingTop:2}}>
+        <div style={{color:'#cfcfcf'}}>{d.date.slice(8)}.{d.date.slice(5,7)}</div>
+        <div>{d.date.slice(0,4)}</div>
+      </div>
+      <div>
+        <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:3}}>
+          <span className="mono" style={{fontSize:9, color:kindColor, letterSpacing:'.1em'}}>{kindMap[d.kind]}</span>
+          {d.qty && <span className="mono" style={{fontSize:10, color:'#666'}}>· {d.qty}</span>}
+        </div>
+        <div style={{fontSize:13, color:'#e8e8e8', lineHeight:1.35}}>{d.title}</div>
+        {d.note && <div style={{fontSize:11, color:'#7a7a7a', marginTop:3}}>{d.note}</div>}
+      </div>
+      {d.sum && <div className="mono" style={{fontSize:13, color:'#e8e8e8', alignSelf:'center', textAlign:'right'}}>{d.sum.toLocaleString('ru-RU')} ₽</div>}
+    </div>
+  );
+};
+
+/* ─────────────────── MAIN CARD ─────────────────── */
+function ContactCard(){
+  const c = CONTACT;
+  return (
+    <div style={cardStyles.screen} data-screen-label="Карточка контрагента">
+      {/* HEADER */}
+      <div style={cardStyles.header}>
+        <button style={cardStyles.iconBtn}><Icon name="back"/></button>
+        <div className="mono" style={{fontSize:10, color:'#666', letterSpacing:'.16em'}}>КОНТРАГЕНТ · #1247</div>
+        <button style={cardStyles.iconBtn}><Icon name="more"/></button>
+      </div>
+
+      {/* HERO */}
+      <div style={cardStyles.hero}>
+        <div style={cardStyles.cover}>
+          <div style={cardStyles.coverGrid}/>
+          <div style={cardStyles.hatch}/>
+          <div style={{position:'absolute', right:12, top:12, display:'flex', gap:6}}>
+            <span style={{...cardStyles.chip, background:'#0c0c0cbb'}}>
+              <span style={{...cardStyles.chipDot, background:'#5ec27a'}}/>активен
+            </span>
+            <span style={{...cardStyles.chip, background:'#0c0c0cbb'}}>
+              <Icon name="pinFill" size={11} stroke="#d4a72c"/>
+              <span style={{marginLeft:4}}>избранный</span>
+            </span>
+          </div>
+          <div style={{position:'absolute', left:14, top:14, fontSize:10, color:'#666'}} className="mono">
+            ID · KIMTEHNO_073<br/>ИНН · {c.inn}
+          </div>
+          <div style={cardStyles.avatar}><ContactLogo/></div>
+        </div>
+
+        <div style={cardStyles.nameWrap}>
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <span style={cardStyles.pin}><Icon name="mapPin" size={10} stroke="#888"/> {c.city}</span>
+            <span className="mono" style={{fontSize:10, color:'#666', letterSpacing:'.12em'}}>· {c.lastDealDays} дн. назад</span>
+          </div>
+          <h1 style={cardStyles.h1}>{c.name}</h1>
+          <p style={cardStyles.sub}>{c.tagline}</p>
+
+          {/* Role chips */}
+          <div style={cardStyles.metaRow}>
+            <span style={{...cardStyles.chip, background:'#181818', borderColor:'#2c2c2c'}}>
+              <span style={{...cardStyles.chipDot, background:'#e8e8e8'}}/>Кооператор
+            </span>
+            <span style={{...cardStyles.chip, background:'#181818', borderColor:'#2c2c2c'}}>
+              <span style={{...cardStyles.chipDot, background:'#9a9a9a'}}/>Поставщик
+            </span>
+          </div>
+        </div>
+
+        {/* Stat strip */}
+        <div style={cardStyles.bigBar}>
+          <div style={cardStyles.stat}>
+            <span style={cardStyles.statLabel}>Рейтинг</span>
+            <span style={cardStyles.statValue}>{c.rating.overall}</span>
+            <span style={cardStyles.statHint}>{c.rating.count} оценок</span>
+          </div>
+          <div style={{...cardStyles.stat, borderLeft:'1px solid #1a1a1a', paddingLeft:12}}>
+            <span style={cardStyles.statLabel}>Закупок</span>
+            <span style={cardStyles.statValue}>{c.totalDeals}</span>
+            <span style={cardStyles.statHint}>{(c.totalSum/1e6).toFixed(2)} млн ₽</span>
+          </div>
+          <div style={{...cardStyles.stat, borderLeft:'1px solid #1a1a1a', paddingLeft:12}}>
+            <span style={cardStyles.statLabel}>Загрузка</span>
+            <span style={cardStyles.statValue}>{c.load}%</span>
+            <div style={{height:3, background:'#1a1a1a', borderRadius:99, marginTop:6, overflow:'hidden'}}>
+              <div style={{height:'100%', width:`${c.load}%`, background:c.load>80?'#d96565':c.load>60?'#d4a72c':'#5ec27a'}}/>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={cardStyles.actions}>
+          <button style={cardStyles.btnPrimary}><Icon name="tg" size={16} stroke="#0c0c0c"/> Telegram</button>
+          <button style={cardStyles.btn}><Icon name="phone" size={16}/> Позвонить</button>
+          <button style={cardStyles.btn}><Icon name="doc" size={16}/> Запросить прайс</button>
+          <button style={cardStyles.btn}><Icon name="star" size={16}/> Оценить</button>
+        </div>
+      </div>
+
+      {/* ACCORDION SECTIONS */}
+      <div style={cardStyles.sectionsWrap}>
+        <Section icon="tags" title="Что делает" badge={`${c.tags.length}`} defaultOpen={true}>
+          <div style={{display:'flex', flexWrap:'wrap', gap:6, paddingTop:12}}>
+            {c.tags.map(t=>(
+              <span key={t} style={{...cardStyles.chip, background:'#161616'}}>{t}</span>
+            ))}
+          </div>
+          <div style={{marginTop:14, paddingTop:12, borderTop:'1px solid #1a1a1a'}}>
+            <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase', marginBottom:8}}>Операции</div>
+            {c.ops.map(op=>(
+              <div key={op} style={{display:'flex', alignItems:'center', gap:8, padding:'6px 0'}}>
+                <Icon name="check" size={13} stroke="#5ec27a"/>
+                <span style={{fontSize:13}}>{op}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section icon="cnc" title="Парк станков" badge={`${c.machines.length}`}>
+          <div style={{paddingTop:8}}>
+            {c.machines.map(m=> <Machine key={m.model} m={m}/>)}
+          </div>
+          <div style={{marginTop:14, padding:12, background:'#0c0c0c', border:'1px solid #1a1a1a', borderRadius:10, display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+            <div>
+              <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase'}}>Макс. деталь</div>
+              <div className="mono" style={{fontSize:14, color:'#e8e8e8', marginTop:4}}>{c.envelope.x}×{c.envelope.y}×{c.envelope.z}<span style={{color:'#666', fontSize:11}}> мм</span></div>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase'}}>Макс. вес</div>
+              <div className="mono" style={{fontSize:14, color:'#e8e8e8', marginTop:4}}>{c.envelope.weightKg}<span style={{color:'#666', fontSize:11}}> кг</span></div>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase'}}>Точность</div>
+              <div className="mono" style={{fontSize:14, color:'#e8e8e8', marginTop:4}}>{c.precision.tol}</div>
+            </div>
+            <div>
+              <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase'}}>Шерох-сть</div>
+              <div className="mono" style={{fontSize:14, color:'#e8e8e8', marginTop:4}}>{c.precision.ra}</div>
+            </div>
+          </div>
+        </Section>
+
+        <Section icon="star" title="Рейтинг и оценки" badge={c.rating.overall.toFixed(1)}>
+          <div style={{paddingTop:10}}>
+            <RatingBar label="Цена"           value={c.rating.price}/>
+            <RatingBar label="Качество"       value={c.rating.quality}/>
+            <RatingBar label="Срок поставки"  value={c.rating.speed}/>
+            <div style={{marginTop:10, padding:'10px 12px', background:'#0c0c0c', border:'1px solid #1a1a1a', borderRadius:10, fontSize:12, color:'#9a9a9a'}}>
+              <span style={{color:'#cfcfcf'}}>Сводный балл {c.rating.overall}</span> · построен по {c.rating.count} оценкам и {c.totalDeals} сделкам
+            </div>
+          </div>
+        </Section>
+
+        <Section icon="camera" title="Фото производства" badge="4">
+          <PhotoStrip/>
+          <div style={{fontSize:11, color:'#666', marginTop:4}}>Последняя съёмка — визит 04.02.2026</div>
+        </Section>
+
+        <Section icon="shield" title="Документы и условия" badge={c.certs.length}>
+          <div style={{paddingTop:10, display:'grid', gap:10}}>
+            <div style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1a1a1a'}}>
+              <span style={{fontSize:12, color:'#9a9a9a'}}>НДС</span>
+              <span className="mono" style={{fontSize:12, color:'#e8e8e8'}}>{c.vat}</span>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #1a1a1a'}}>
+              <span style={{fontSize:12, color:'#9a9a9a'}}>Мин. партия</span>
+              <span className="mono" style={{fontSize:12, color:'#e8e8e8'}}>{c.minBatch} шт</span>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between', padding:'8px 0'}}>
+              <span style={{fontSize:12, color:'#9a9a9a'}}>Сертификаты</span>
+              <span style={{fontSize:12, color:'#e8e8e8'}}>{c.certs.join(' · ')}</span>
+            </div>
+            <button style={{...cardStyles.btn, marginTop:4}}><Icon name="doc" size={14}/> Прайс от 02.11.2025 · PDF</button>
+          </div>
+        </Section>
+
+        <Section icon="phone" title="Контакты">
+          <div style={{paddingTop:12, display:'grid', gap:10}}>
+            <div style={{padding:12, background:'#0c0c0c', border:'1px solid #1a1a1a', borderRadius:10}}>
+              <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase'}}>Менеджер</div>
+              <div style={{fontSize:14, color:'#e8e8e8', marginTop:4, fontWeight:600}}>{c.manager.name}</div>
+              <div style={{display:'flex', gap:14, marginTop:8, fontSize:12, color:'#9a9a9a'}}>
+                <span className="mono">{c.manager.phone}</span>
+                <span style={{color:'#cfcfcf'}}>{c.manager.tg}</span>
+              </div>
+            </div>
+            <div style={{display:'flex', gap:8, alignItems:'flex-start', padding:'4px 4px'}}>
+              <Icon name="mapPin" size={14} stroke="#888"/>
+              <div style={{fontSize:12, color:'#cfcfcf', lineHeight:1.5}}>{c.address}</div>
+            </div>
+          </div>
+        </Section>
+
+        <Section icon="history" title="История · полная летопись" badge={c.deals.length}>
+          <div style={{paddingTop:4}}>
+            {c.deals.map((d,i)=> <Deal key={i} d={d}/>)}
+            <button style={{...cardStyles.btn, marginTop:14, width:'100%'}}>Показать ещё {c.totalDeals - c.deals.length}</button>
+          </div>
+        </Section>
+
+        <div style={{margin:'18px 16px 0', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8}}>
+          <button style={{...cardStyles.btn, color:'#9a9a9a'}}><Icon name="pen" size={14} stroke="#9a9a9a"/> Редактировать</button>
+          <button style={{...cardStyles.btn, color:'#d96565', borderColor:'#3a1f1f'}}><Icon name="trash" size={14} stroke="#d96565"/> Удалить</button>
+        </div>
+
+        <div className="mono" style={{textAlign:'center', fontSize:9, color:'#3a3a3a', letterSpacing:'.18em', marginTop:24}}>
+          METALLBOT · v5
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── LIST SCREEN ─────────────────── */
+function ListScreen(){
+  const items = [
+    {name:'ООО «Кимтехно»', city:'Димитровград', tag:'Токарка · Фреза', rating:4.3, load:62, badge:'COOP'},
+    {name:'Металл для Вас', city:'Ульяновск', tag:'Прокат · Резка', rating:4.6, load:null, badge:'ПОСТ'},
+    {name:'ИП Сорокин А.В.', city:'Тольятти', tag:'Эрозия · Шлифовка', rating:3.8, load:88, badge:'COOP'},
+    {name:'УТК-Сталь', city:'Екатеринбург', tag:'Нержавейка', rating:4.4, load:null, badge:'ПОСТ'},
+    {name:'ТермоПром', city:'Самара', tag:'Закалка · Отпуск', rating:4.1, load:35, badge:'COOP'},
+    {name:'ГальваноЛюкс', city:'Ульяновск', tag:'Цинк · Хром · Оксид', rating:4.5, load:null, badge:'ПОКР'},
+  ];
+  return (
+    <div style={{...cardStyles.screen, paddingBottom:30}} data-screen-label="Список контрагентов">
+      <div style={cardStyles.header}>
+        <button style={cardStyles.iconBtn}><Icon name="back"/></button>
+        <div className="mono" style={{fontSize:10, color:'#666', letterSpacing:'.16em'}}>КОНТРАГЕНТЫ · 247</div>
+        <button style={cardStyles.iconBtn}><Icon name="sliders"/></button>
+      </div>
+      <div style={{padding:'4px 16px 8px'}}>
+        <div style={{display:'flex', alignItems:'center', gap:10, padding:'12px 14px', background:'#141414', border:'1px solid #222', borderRadius:14}}>
+          <Icon name="search" size={16} stroke="#888"/>
+          <span style={{fontSize:13, color:'#9a9a9a', flex:1}}>кто варит аргоном?</span>
+          <span className="mono" style={{fontSize:10, color:'#666'}}>⌘K</span>
+        </div>
+        <div style={{display:'flex', gap:6, marginTop:10, overflowX:'auto', paddingBottom:4, scrollbarWidth:'none'}}>
+          {['Все','Поставщики','Кооператоры','Покрытия','Инструмент','Избранные'].map((t,i)=>(
+            <span key={t} style={{
+              flex:'0 0 auto', padding:'6px 12px', borderRadius:999, fontSize:12,
+              background: i===0?'#e8e8e8':'#141414', color: i===0?'#0c0c0c':'#cfcfcf',
+              border:'1px solid '+(i===0?'#e8e8e8':'#222'),
+            }}>{t}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{padding:'0 16px'}}>
+        {items.map((it,i)=>(
+          <div key={i} style={{
+            display:'grid', gridTemplateColumns:'42px 1fr auto', gap:12, alignItems:'center',
+            padding:'14px 12px', borderTop: i===0?'none':'1px solid #1a1a1a',
+          }}>
+            <div style={{width:42, height:42, borderRadius:11, background:'#141414', border:'1px solid #222', display:'grid', placeItems:'center'}}>
+              <ContactLogo/>
+            </div>
+            <div>
+              <div style={{display:'flex', alignItems:'center', gap:8}}>
+                <span style={{fontSize:14, fontWeight:600, color:'#e8e8e8'}}>{it.name}</span>
+                <span className="mono" style={{fontSize:9, color:'#666', letterSpacing:'.12em', padding:'2px 6px', border:'1px solid #232323', borderRadius:99}}>{it.badge}</span>
+              </div>
+              <div style={{fontSize:11, color:'#7a7a7a', marginTop:3}}>{it.city} · {it.tag}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div className="mono" style={{fontSize:13, color:'#e8e8e8'}}>★ {it.rating}</div>
+              {it.load!==null && (
+                <div style={{display:'flex', alignItems:'center', gap:4, marginTop:4, justifyContent:'flex-end'}}>
+                  <div style={{width:34, height:3, background:'#1a1a1a', borderRadius:99, overflow:'hidden'}}>
+                    <div style={{height:'100%', width:`${it.load}%`, background:it.load>80?'#d96565':it.load>60?'#d4a72c':'#5ec27a'}}/>
+                  </div>
+                  <span className="mono" style={{fontSize:9, color:'#666'}}>{it.load}%</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── COMPARE SCREEN ─────────────────── */
+function CompareScreen(){
+  const cmp = [
+    {k:'Цена',     a:'4.2', b:'3.8', winner:'a'},
+    {k:'Качество', a:'4.7', b:'4.4', winner:'a'},
+    {k:'Срок',     a:'3.9', b:'4.6', winner:'b'},
+    {k:'Загрузка', a:'62%', b:'35%', winner:'b'},
+    {k:'Мин.партия', a:'50',  b:'200', winner:'a'},
+    {k:'Сделок с нами', a:'31', b:'7', winner:'a'},
+    {k:'Средний чек',  a:'149 K',  b:'88 K', winner:'—'},
+  ];
+  return (
+    <div style={{...cardStyles.screen, paddingBottom:30}} data-screen-label="Сравнение">
+      <div style={cardStyles.header}>
+        <button style={cardStyles.iconBtn}><Icon name="back"/></button>
+        <div className="mono" style={{fontSize:10, color:'#666', letterSpacing:'.16em'}}>СРАВНЕНИЕ · ТОКАРКА Ø32</div>
+        <button style={cardStyles.iconBtn}><Icon name="more"/></button>
+      </div>
+      <div style={{padding:'4px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8}}>
+        {[{name:'Кимтехно', city:'Димитровград', side:'a'},{name:'ТермоПром', city:'Самара', side:'b'}].map((p)=>(
+          <div key={p.side} style={{
+            padding:'14px 12px', borderRadius:14,
+            background: p.side==='a'?'#141414':'#0f0f0f',
+            border:'1px solid #232323',
+          }}>
+            <div style={{width:36, height:36, borderRadius:10, background:'#0c0c0c', border:'1px solid #222', display:'grid', placeItems:'center', marginBottom:10}}>
+              <ContactLogo/>
+            </div>
+            <div style={{fontSize:13, fontWeight:600}}>{p.name}</div>
+            <div style={{fontSize:11, color:'#7a7a7a', marginTop:2}}>{p.city}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{padding:'14px 16px 0'}}>
+        <div style={{border:'1px solid #1f1f1f', borderRadius:14, overflow:'hidden'}}>
+          {cmp.map((r,i)=>(
+            <div key={i} style={{
+              display:'grid', gridTemplateColumns:'1fr 1fr 1fr', alignItems:'center',
+              padding:'12px 14px',
+              borderTop: i===0?'none':'1px solid #1a1a1a',
+              background: i%2===0?'#0f0f0f':'#0c0c0c',
+            }}>
+              <span style={{
+                fontSize:13, fontWeight: r.winner==='a'?700:400,
+                color: r.winner==='a'?'#e8e8e8':'#7a7a7a',
+              }} className="mono">{r.a}</span>
+              <span style={{fontSize:11, color:'#666', textAlign:'center', textTransform:'uppercase', letterSpacing:'.12em'}}>{r.k}</span>
+              <span style={{
+                fontSize:13, fontWeight: r.winner==='b'?700:400,
+                color: r.winner==='b'?'#e8e8e8':'#7a7a7a',
+                textAlign:'right',
+              }} className="mono">{r.b}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{margin:'16px 0 0', padding:'14px', background:'#101010', border:'1px solid #1f1f1f', borderRadius:14}}>
+          <div style={{fontSize:10, color:'#666', letterSpacing:'.14em', textTransform:'uppercase'}}>Рекомендация</div>
+          <div style={{fontSize:14, color:'#e8e8e8', marginTop:6, lineHeight:1.5}}>
+            На <span style={{color:'#cfcfcf', fontWeight:600}}>токарку Ø32, серия 480 шт</span> — <b>Кимтехно</b>: дешевле, чаще работали, лучше качество. Срок длиннее на 3 дня.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── SaaS variation (Soft) ─────────────────── */
+const lightCardStyles = {
+  screen:{
+    width:'100%', height:'100%', background:'#f6f5f1', color:'#1a1a1a',
+    fontFamily:'Manrope, system-ui, sans-serif', overflowY:'auto',
+    paddingBottom:90, boxSizing:'border-box',
+  },
+};
+function ContactCardLight(){
+  const c = CONTACT;
+  return (
+    <div style={lightCardStyles.screen} data-screen-label="Карточка контрагента — Light">
+      <div style={{padding:'14px 16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <button style={{width:36, height:36, borderRadius:10, border:'1px solid #e3dfd5', background:'#fff', display:'grid', placeItems:'center'}}>
+          <Icon name="back" stroke="#3a3a3a"/>
+        </button>
+        <div className="mono" style={{fontSize:10, color:'#9a9a9a', letterSpacing:'.16em'}}>КОНТРАГЕНТ</div>
+        <button style={{width:36, height:36, borderRadius:10, border:'1px solid #e3dfd5', background:'#fff', display:'grid', placeItems:'center'}}>
+          <Icon name="more" stroke="#3a3a3a"/>
+        </button>
+      </div>
+      <div style={{padding:'4px 16px 18px'}}>
+        <div style={{padding:'22px 20px', background:'#fff', borderRadius:20, border:'1px solid #e7e3d8', boxShadow:'0 1px 0 #e7e3d8'}}>
+          <div style={{display:'flex', gap:14, alignItems:'flex-start'}}>
+            <div style={{width:58, height:58, borderRadius:14, background:'#0c0c0c', display:'grid', placeItems:'center'}}>
+              <ContactLogo/>
+            </div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{display:'flex', gap:6, marginBottom:6}}>
+                <span style={{fontSize:10, padding:'3px 8px', borderRadius:99, background:'#eef4ec', color:'#2f6b3d', letterSpacing:'.06em'}}>● активен</span>
+                <span style={{fontSize:10, padding:'3px 8px', borderRadius:99, background:'#fbf3df', color:'#8a6a14', letterSpacing:'.06em'}}>★ избранный</span>
+              </div>
+              <div style={{fontSize:20, fontWeight:700, lineHeight:1.15, letterSpacing:'-.01em'}}>{c.name}</div>
+              <div style={{fontSize:12, color:'#6b6b6b', marginTop:4}}>{c.city} · {c.tagline}</div>
+            </div>
+          </div>
+          <div style={{display:'flex', gap:6, flexWrap:'wrap', marginTop:14}}>
+            {c.tags.slice(0,5).map(t=>(
+              <span key={t} style={{fontSize:11, padding:'5px 10px', borderRadius:99, background:'#f3efe4', color:'#3a3a3a', border:'1px solid #e7e3d8'}}>{t}</span>
+            ))}
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginTop:18}}>
+            {[
+              {l:'Рейтинг', v:c.rating.overall, h:`${c.rating.count} оценок`},
+              {l:'Закупок', v:c.totalDeals, h:`${(c.totalSum/1e6).toFixed(2)} млн ₽`},
+              {l:'Загрузка',v:`${c.load}%`, h:'свободен ~38%'},
+            ].map(s=>(
+              <div key={s.l} style={{padding:'12px 12px', background:'#fafaf6', border:'1px solid #efeadf', borderRadius:12}}>
+                <div style={{fontSize:10, color:'#9a9a9a', letterSpacing:'.1em', textTransform:'uppercase'}}>{s.l}</div>
+                <div style={{fontSize:18, fontWeight:700, marginTop:4}}>{s.v}</div>
+                <div style={{fontSize:11, color:'#9a9a9a', marginTop:2}}>{s.h}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:12}}>
+          <button style={{padding:'12px', borderRadius:12, border:0, background:'#0c0c0c', color:'#f6f5f1', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:8, cursor:'pointer'}}>
+            <Icon name="tg" size={16} stroke="#f6f5f1"/> Telegram
+          </button>
+          <button style={{padding:'12px', borderRadius:12, border:'1px solid #d8d3c4', background:'#fff', fontSize:13, fontWeight:500, display:'flex', alignItems:'center', justifyContent:'center', gap:8, cursor:'pointer'}}>
+            <Icon name="phone" size={16} stroke="#1a1a1a"/> Позвонить
+          </button>
+          <button style={{padding:'12px', borderRadius:12, border:'1px solid #d8d3c4', background:'#fff', fontSize:13, fontWeight:500, display:'flex', alignItems:'center', justifyContent:'center', gap:8, cursor:'pointer'}}>
+            <Icon name="doc" size={16} stroke="#1a1a1a"/> Запросить прайс
+          </button>
+          <button style={{padding:'12px', borderRadius:12, border:'1px solid #d8d3c4', background:'#fff', fontSize:13, fontWeight:500, display:'flex', alignItems:'center', justifyContent:'center', gap:8, cursor:'pointer'}}>
+            <Icon name="star" size={16} stroke="#1a1a1a"/> Оценить
+          </button>
+        </div>
+
+        <div style={{marginTop:12, padding:'16px 18px', background:'#fff', border:'1px solid #e7e3d8', borderRadius:16}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+            <span style={{fontSize:13, fontWeight:600}}>Парк станков</span>
+            <span style={{fontSize:11, color:'#9a9a9a'}}>{c.machines.length} единиц</span>
+          </div>
+          {c.machines.slice(0,3).map((m,i)=>(
+            <div key={m.model} style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderTop: i===0?'none':'1px solid #efeadf'}}>
+              <div>
+                <div style={{fontSize:13, fontWeight:600}}>{m.model}</div>
+                <div style={{fontSize:11, color:'#9a9a9a', marginTop:2}}>{m.kind} · {m.envelope}</div>
+              </div>
+              <span className="mono" style={{fontSize:11, color:'#9a9a9a', alignSelf:'center'}}>× {m.count}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{marginTop:12, padding:'16px 18px', background:'#fff', border:'1px solid #e7e3d8', borderRadius:16}}>
+          <div style={{fontSize:13, fontWeight:600, marginBottom:10}}>Рейтинг</div>
+          {[['Цена',c.rating.price],['Качество',c.rating.quality],['Срок',c.rating.speed]].map(([l,v])=>(
+            <div key={l} style={{display:'grid', gridTemplateColumns:'80px 1fr 32px', gap:10, alignItems:'center', padding:'6px 0'}}>
+              <span style={{fontSize:12, color:'#6b6b6b'}}>{l}</span>
+              <div style={{height:6, background:'#f0ece1', borderRadius:99, overflow:'hidden'}}>
+                <div style={{height:'100%', width:`${v*20}%`, background:'#0c0c0c'}}/>
+              </div>
+              <span className="mono" style={{fontSize:12, textAlign:'right'}}>{v.toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── CANVAS ─────────────────── */
+function App(){
+  return (
+    <DesignCanvas title="METALLBOT · Mini App" subtitle="Карточка контрагента и спутники — две визуальные ветки">
+      <DCSection id="industrial" title="Industrial Mono · чёрный, тонкие линии, тех. шрифт">
+        <DCArtboard id="card-main" label="Карточка · accordion (главный экран)" width={402} height={1500}>
+          <IOSDevice><ContactCard/></IOSDevice>
+        </DCArtboard>
+        <DCArtboard id="list" label="Список · поиск «кто варит аргоном?»" width={402} height={874}>
+          <IOSDevice><ListScreen/></IOSDevice>
+        </DCArtboard>
+        <DCArtboard id="compare" label="Сравнение двух контрагентов" width={402} height={874}>
+          <IOSDevice><CompareScreen/></IOSDevice>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="saas" title="Soft SaaS · светлый, мягкие тени">
+        <DCArtboard id="card-light" label="Карточка · светлая версия" width={402} height={1100}>
+          <IOSDevice><ContactCardLight/></IOSDevice>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: metallbot-webapp
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOOGLE_SHEET_ID
+        sync: false
+      - key: GOOGLE_CREDS_JSON
+        sync: false
