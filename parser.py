@@ -572,14 +572,42 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
             logger.warning("[sheets] Не найдена колонка с названием компании")
             return False
 
-        # Нечёткий поиск строки
-        target_name = result.company_name.lower().strip()
+        def _normalize(s: str) -> str:
+            """Убираем кавычки, скобки, лишние пробелы для сравнения."""
+            s = s.lower().strip()
+            s = re.sub(r'[«»"\'„""\(\)\[\]\.,-]', '', s)
+            s = re.sub(r'\s+', ' ', s).strip()
+            return s
+
+        target_name = _normalize(result.company_name)
+        # Ключевые слова (без ООО/ЗАО/ИП для более широкого поиска)
+        target_words = set(w for w in target_name.split() if len(w) > 2
+                           and w not in ('ооо','зао','оао','ип','пао','нко'))
+
         row_idx = None
+        best_score = 0
         for i, row in enumerate(all_vals[1:], start=2):
-            cell = row[name_col_idx].lower().strip() if name_col_idx < len(row) else ""
-            if cell and (cell in target_name or target_name in cell):
+            cell_raw = row[name_col_idx] if name_col_idx < len(row) else ""
+            cell = _normalize(cell_raw)
+            if not cell:
+                continue
+            # Точное совпадение после нормализации
+            if cell == target_name:
                 row_idx = i
                 break
+            # Частичное совпадение
+            if target_name in cell or cell in target_name:
+                row_idx = i
+                break
+            # Совпадение по ключевым словам (≥70%)
+            cell_words = set(w for w in cell.split() if len(w) > 2
+                             and w not in ('ооо','зао','оао','ип','пао','нко'))
+            if target_words and cell_words:
+                common = target_words & cell_words
+                score = len(common) / max(len(target_words), len(cell_words))
+                if score >= 0.7 and score > best_score:
+                    best_score = score
+                    row_idx = i
 
         if row_idx is None:
             logger.warning("[sheets] Компания '%s' не найдена в листе '%s'",

@@ -243,6 +243,15 @@ def api_stats():
 def api_health():
     return {"ok": True, "port": PORT}
 
+@app.post("/api/cache/clear")
+def api_cache_clear():
+    """Сбрасывает кэш Google Sheets — вызывается после парсинга."""
+    global _ss
+    _cache.clear()
+    _ss = None
+    logger.info("Кэш сброшен")
+    return {"ok": True, "cleared": True}
+
 @app.get("/api/images/{company_slug}")
 def api_images(company_slug: str):
     """Список сохранённых фото для компании."""
