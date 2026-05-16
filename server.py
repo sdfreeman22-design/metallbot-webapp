@@ -35,6 +35,7 @@ logger = logging.getLogger("metallbot.webapp")
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi import Response
 
 app = FastAPI(title="METALLBOT Mini App")
 app.add_middleware(
@@ -208,11 +209,17 @@ def api_health():
 # ── Static ────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
-    return FileResponse(WEBAPP_DIR / "contact.html")
+    return FileResponse(
+        WEBAPP_DIR / "contact.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
 
 @app.get("/contact.html")
 def contact_html():
-    return FileResponse(WEBAPP_DIR / "contact.html")
+    return FileResponse(
+        WEBAPP_DIR / "contact.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
