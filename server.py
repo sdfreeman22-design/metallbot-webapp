@@ -32,15 +32,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("metallbot.webapp")
 
 # ── fastapi ───────────────────────────────────────────────────────────────────
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi import Response
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="METALLBOT Mini App")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
+
+# Раздаём скачанные фото партнёров
+STATIC_DIR = WEBAPP_DIR / "static"
+STATIC_DIR.mkdir(exist_ok=True)
+(STATIC_DIR / "images").mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # ── Google Sheets: прямое подключение ────────────────────────────────────────
 _ss      = None   # spreadsheet object
@@ -94,27 +100,58 @@ def _sheet_rows(sheet_name: str) -> list[dict]:
 def _s(v: Any) -> str:
     return str(v).strip() if v else ""
 
+def _split(val: str) -> list[str]:
+    """Разбивает строку вида 'a | b | c' в список."""
+    if not val:
+        return []
+    return [x.strip() for x in val.split("|") if x.strip()]
+
 def _row_to_contact(row: dict, kind: str) -> dict:
     name = _s(row.get("Название") or row.get("Компания") or row.get("Поставщик"))
+    # Объединяем данные из таблицы + данные от парсера
+    phone  = _s(row.get("Телефон_парс") or row.get("Телефон"))
+    email  = _s(row.get("Email_парс")   or row.get("Email"))
+
+    # Услуги и оборудование — парсер дополняет ручные данные
+    service   = _s(row.get("Услуги_парс") or row.get("Виды_работ") or
+                   row.get("Вид услуги")  or row.get("Вид покрытия"))
+    equipment = _s(row.get("Оборудование_парс") or row.get("Оборудование"))
+    materials = _s(row.get("Материалы_парс")    or row.get("Материалы"))
+    spec      = _s(row.get("Специализация") or row.get("Вид металла/услуги"))
+
     return {
         "id":             name,
         "kind":           kind,
         "name":           name,
-        "city":           _s(row.get("Город")),
-        "phone":          _s(row.get("Телефон")),
-        "email":          _s(row.get("Email")),
+        "city":           _s(row.get("Город") or row.get("Адрес_парс")),
+        "phone":          phone,
+        "email":          email,
         "contact":        _s(row.get("Контакт") or row.get("Менеджер")),
-        "specialization": _s(row.get("Специализация") or row.get("Вид металла/услуги")),
-        "service":        _s(row.get("Виды_работ") or row.get("Вид услуги") or row.get("Вид покрытия")),
-        "equipment":      _s(row.get("Оборудование")),
-        "materials":      _s(row.get("Материалы")),
+        "specialization": spec,
+        "service":        service,
+        "equipment":      equipment,
+        "materials":      materials,
         "status":         _s(row.get("Статус")),
         "rating":         _s(row.get("Рейтинг")),
         "price_level":    _s(row.get("Цена_уровень")),
         "notes":          _s(row.get("Заметки") or row.get("Примечание")),
-        "media":          _s(row.get("Медиафайлы")),
         "added":          _s(row.get("Добавлено") or row.get("Дата")),
         "added_by":       _s(row.get("Кто_добавил")),
+        # Парсинговые данные
+        "website":        _s(row.get("Сайт")),
+        "description":    _s(row.get("Описание_парс")),
+        "services_list":  _split(row.get("Услуги_парс", "")),
+        "equipment_list": _split(row.get("Оборудование_парс", "")),
+        "materials_list": _split(row.get("Материалы_парс", "")),
+        "certificates":   _split(row.get("Сертификаты_парс", "")),
+        "address":        _s(row.get("Адрес_парс")),
+        "work_hours":     _s(row.get("Режим_работы")),
+        "founded_year":   _s(row.get("Год_основания")),
+        "employees":      _s(row.get("Сотрудников")),
+        "area_sqm":       _s(row.get("Площадь")),
+        "extra_facts":    _split(row.get("Факты_парс", "")),
+        "photo_urls":     _split(row.get("Фото_URLs", "")),
+        "parsed_at":      _s(row.get("Парсинг_дата")),
         "raw":            {k: _s(v) for k, v in row.items()},
     }
 
@@ -205,6 +242,18 @@ def api_stats():
 @app.get("/api/health")
 def api_health():
     return {"ok": True, "port": PORT}
+
+@app.get("/api/images/{company_slug}")
+def api_images(company_slug: str):
+    """Список сохранённых фото для компании."""
+    folder = STATIC_DIR / "images" / company_slug
+    if not folder.exists():
+        return {"images": []}
+    images = []
+    for f in sorted(folder.iterdir()):
+        if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+            images.append(f"/static/images/{company_slug}/{f.name}")
+    return {"images": images, "company": company_slug}
 
 # ── Static ────────────────────────────────────────────────────────────────────
 @app.get("/")

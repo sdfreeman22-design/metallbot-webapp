@@ -121,6 +121,49 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-s
 .hist-desc{font-size:13px;margin:3px 0}
 .hist-sum{font-size:14px;font-weight:700;color:var(--accent)}
 
+/* ── Gallery ── */
+.gallery{display:flex;gap:6px;padding:0 16px 16px;overflow-x:auto;scrollbar-width:none}
+.gallery::-webkit-scrollbar{display:none}
+.gallery img{
+  height:130px;width:auto;min-width:90px;max-width:200px;
+  border-radius:10px;object-fit:cover;flex-shrink:0;cursor:pointer;
+  border:1px solid var(--border);background:var(--bg3);
+}
+
+/* ── Lightbox ── */
+#lightbox{
+  display:none;position:fixed;inset:0;background:#000d;z-index:200;
+  align-items:center;justify-content:center;
+}
+#lightbox.open{display:flex}
+#lightbox img{max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain}
+#lightbox-close{
+  position:absolute;top:16px;right:16px;font-size:28px;color:#fff;cursor:pointer;
+  width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+}
+
+/* ── Tags list ── */
+.tags-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+.ptag{
+  padding:4px 10px;border-radius:20px;font-size:12px;
+  background:var(--bg3);border:1px solid var(--border);color:var(--ink2);
+}
+.ptag.t-coop{border-color:#5ec27a44;color:var(--good)}
+.ptag.t-supp{border-color:#e8c96d44;color:var(--accent)}
+
+/* ── Description block ── */
+.description{
+  margin:0 16px 12px;padding:12px 14px;background:var(--bg2);
+  border-radius:var(--r);border:1px solid var(--border);
+  font-size:13px;line-height:1.6;color:var(--ink2);
+}
+
+/* ── Parsed badge ── */
+.parsed-badge{
+  display:inline-flex;align-items:center;gap:4px;margin:0 16px 12px;
+  font-size:11px;color:var(--ink3);
+}
+
 /* ── Spinner ── */
 .spinner-wrap{display:flex;justify-content:center;padding:40px}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
@@ -151,6 +194,12 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-s
 
   <!-- ═══ DETAIL VIEW ═══ -->
   <div id="detail"></div>
+
+  <!-- ═══ LIGHTBOX ═══ -->
+  <div id="lightbox">
+    <div id="lightbox-close" onclick="closeLightbox()">✕</div>
+    <img id="lightbox-img" src="" alt="">
+  </div>
 
 </div>
 
@@ -292,15 +341,48 @@ function renderDetail(c) {
         </div>`).join('')
     : '<div class="empty" style="padding:20px"><div class="empty-ico" style="font-size:32px">📋</div>История пуста</div>';
 
+  // ── Галерея фото ──
+  const photos = c.photo_urls || [];
+  const galleryHtml = photos.length ? `
+    <div class="section-title">Фото производства</div>
+    <div class="gallery">
+      ${photos.map(u => `<img src="${esc(u)}" loading="lazy" onclick="openLightbox('${esc(u)}')" onerror="this.style.display='none'">`).join('')}
+    </div>` : '';
+
+  // ── Описание ──
+  const descHtml = c.description ? `
+    <div class="section-title">О компании</div>
+    <div class="description">${esc(c.description)}</div>` : '';
+
+  // ── Теги услуг/оборудования ──
+  const tagKind = c.kind === 'coop' ? 't-coop' : 't-supp';
+  const allTags = [...(c.services_list||[]), ...(c.equipment_list||[]), ...(c.materials_list||[])];
+  const tagsHtml = allTags.length ? `
+    <div class="section-title">Услуги и оборудование</div>
+    <div class="tags-wrap">${allTags.slice(0,20).map(t => `<span class="ptag ${tagKind}">${esc(t)}</span>`).join('')}</div>` : '';
+
+  // ── Сертификаты ──
+  const certsHtml = (c.certificates||[]).length ? `
+    <div class="tags-wrap" style="padding-top:0">${c.certificates.map(t => `<span class="ptag" style="border-color:#5ec27a44;color:var(--good)">📜 ${esc(t)}</span>`).join('')}</div>` : '';
+
+  // ── Факты ──
+  const factsHtml = (c.extra_facts||[]).length ? `
+    <div class="section-title">Факты</div>
+    <div class="info-card">${c.extra_facts.map(f => `<div class="info-row"><span class="info-value">💡 ${esc(f)}</span></div>`).join('')}</div>` : '';
+
+  // ── Бейдж парсинга ──
+  const parsedBadge = c.parsed_at ? `<div class="parsed-badge">🤖 Данные обновлены ${esc(c.parsed_at)}</div>` : '';
+
   document.getElementById('detail').innerHTML = `
     <div style="padding-top:env(safe-area-inset-top)">
       <!-- Hero -->
       <div class="det-hero">
         <div class="det-avatar">${icon}</div>
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="det-name">${esc(c.name)}</div>
           <div class="det-kind">${esc(kname)}</div>
           <div class="det-city">${esc(c.city || '')}</div>
+          ${c.website ? `<a href="${esc(c.website)}" style="font-size:12px;color:var(--accent);text-decoration:none" onclick="window.open('${esc(c.website)}');return false">🌐 Сайт</a>` : ''}
         </div>
       </div>
 
@@ -318,13 +400,33 @@ function renderDetail(c) {
           <div class="stat-val">${stats.total_sum ? fmtSum(stats.total_sum) : '—'}</div>
           <div class="stat-lbl">Оборот</div>
         </div>
+        ${c.founded_year ? `<div class="stat-box"><div class="stat-val">${esc(c.founded_year)}</div><div class="stat-lbl">Основана</div></div>` : ''}
+        ${c.employees ? `<div class="stat-box"><div class="stat-val" style="font-size:13px">${esc(c.employees)}</div><div class="stat-lbl">Сотрудников</div></div>` : ''}
       </div>
 
       <!-- Actions -->
       ${actionBtns ? `<div class="actions">${actionBtns}</div>` : ''}
 
+      <!-- Галерея -->
+      ${galleryHtml}
+
+      <!-- Описание -->
+      ${descHtml}
+
+      <!-- Теги -->
+      ${tagsHtml}
+
+      <!-- Сертификаты -->
+      ${certsHtml ? `<div class="section-title">Сертификаты</div>${certsHtml}` : ''}
+
+      <!-- Факты -->
+      ${factsHtml}
+
       <!-- Info -->
-      ${infoFields ? `<div class="section-title">Информация</div><div class="info-card">${infoFields}</div>` : ''}
+      ${infoFields ? `<div class="section-title">Контакты</div><div class="info-card">${infoFields}</div>` : ''}
+
+      <!-- Бейдж парсинга -->
+      ${parsedBadge}
 
       <!-- History -->
       <div class="section-title">История закупок</div>
@@ -362,6 +464,18 @@ document.querySelectorAll('.chip').forEach(ch => {
 document.getElementById('search').addEventListener('input', e => {
   searchQ = e.target.value;
   render();
+});
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if (e.target === this) closeLightbox();
 });
 
 // ── Boot ───────────────────────────────────────────────────────────────────
