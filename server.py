@@ -279,6 +279,39 @@ def api_cache_clear():
     logger.info("Кэш сброшен")
     return {"ok": True, "cleared": True}
 
+@app.get("/api/img")
+async def api_img_proxy(url: str):
+    """Проксирует изображение с сайта партнёра — обходит CORS и hotlink-защиту."""
+    import httpx
+    from fastapi.responses import StreamingResponse
+    from urllib.parse import urlparse
+
+    # Базовая защита — только картинки
+    allowed_ext = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    path = urlparse(url).path.lower()
+    if not any(path.endswith(e) for e in allowed_ext):
+        raise HTTPException(400, "Только изображения")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "image/*,*/*;q=0.8",
+        "Referer": f"{urlparse(url).scheme}://{urlparse(url).netloc}/",
+    }
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15,
+                                     verify=False) as client:
+            r = await client.get(url, headers=headers)
+            if r.status_code != 200:
+                raise HTTPException(502, f"Источник вернул {r.status_code}")
+            ct = r.headers.get("content-type", "image/jpeg")
+            return StreamingResponse(
+                iter([r.content]),
+                media_type=ct,
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(502, f"Ошибка загрузки: {e}")
+
 @app.get("/api/images/{company_slug}")
 def api_images(company_slug: str):
     """Список сохранённых фото для компании."""

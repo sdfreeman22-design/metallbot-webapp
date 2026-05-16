@@ -343,10 +343,13 @@ function renderDetail(c) {
 
   // ── Галерея фото ──
   const photos = c.photo_urls || [];
+  // Все фото грузим через прокси — обходим CORS и hotlink-блокировки
+  const BASE = window.location.origin;
+  function proxyUrl(u) { return BASE + '/api/img?url=' + encodeURIComponent(u); }
   const galleryHtml = photos.length ? `
     <div class="section-title">Фото производства</div>
     <div class="gallery">
-      ${photos.map(u => `<img src="${esc(u)}" loading="lazy" onclick="openLightbox('${esc(u)}')" onerror="this.style.display='none'">`).join('')}
+      ${photos.map(u => `<img src="${proxyUrl(u)}" loading="lazy" onclick="openLightbox('${proxyUrl(u)}')" onerror="this.style.display='none'">`).join('')}
     </div>` : '';
 
   // ── Описание ──
