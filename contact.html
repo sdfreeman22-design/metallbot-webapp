@@ -175,7 +175,7 @@ async function loadContacts() {
     document.getElementById('hdr-sub').textContent = allContacts.length + ' контрагентов';
     render();
   } catch (e) {
-    listEl.innerHTML = '<div class="empty"><div class="empty-ico">⚠️</div>Ошибка загрузки данных</div>';
+    listEl.innerHTML = `<div class="empty"><div class="empty-ico">⚠️</div>Ошибка: ${e.message || e}<br><small style="color:#555;font-size:11px;word-break:break-all">${window.location.origin}/api/contacts</small></div>`;
     console.error(e);
   }
 }
