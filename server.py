@@ -143,15 +143,20 @@ def _row_to_contact(row: dict, kind: str) -> dict:
         "raw":            {k: _s(v) for k, v in row.items()},
     }
 
+def _norm(s: str) -> str:
+    """Убирает всё кроме букв и цифр — для сравнения названий."""
+    import re
+    return re.sub(r'[^\w]', '', s.lower(), flags=re.UNICODE)
+
 def _parsed_data() -> dict[str, dict]:
-    """Читает лист 'Парсинг' и возвращает dict {company_name_lower: data}."""
+    """Читает лист 'Парсинг' → dict {normalized_name: data}."""
     try:
         rows = _sheet_rows("Парсинг")
         result = {}
         for row in rows:
             name = _s(row.get("Компания", ""))
             if name:
-                result[name.lower()] = row
+                result[_norm(name)] = row
         return result
     except Exception:
         return {}
@@ -220,7 +225,7 @@ def api_contact(contact_id: str):
 
     # Добавляем парсинговые данные из листа "Парсинг"
     parsed = _parsed_data()
-    p = parsed.get(target["name"].lower(), {})
+    p = parsed.get(_norm(target["name"]), {})
     target["description"]    = _s(p.get("Описание_парс", ""))
     target["services_list"]  = _split(p.get("Услуги_парс", ""))
     target["equipment_list"] = _split(p.get("Оборудование_парс", ""))
