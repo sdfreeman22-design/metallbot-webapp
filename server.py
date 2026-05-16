@@ -137,23 +137,25 @@ def _row_to_contact(row: dict, kind: str) -> dict:
         "notes":          _s(row.get("Заметки") or row.get("Примечание")),
         "added":          _s(row.get("Добавлено") or row.get("Дата")),
         "added_by":       _s(row.get("Кто_добавил")),
-        # Парсинговые данные
-        "website":        _s(row.get("Сайт")),
-        "description":    _s(row.get("Описание_парс")),
-        "services_list":  _split(row.get("Услуги_парс", "")),
-        "equipment_list": _split(row.get("Оборудование_парс", "")),
-        "materials_list": _split(row.get("Материалы_парс", "")),
-        "certificates":   _split(row.get("Сертификаты_парс", "")),
-        "address":        _s(row.get("Адрес_парс")),
-        "work_hours":     _s(row.get("Режим_работы")),
-        "founded_year":   _s(row.get("Год_основания")),
-        "employees":      _s(row.get("Сотрудников")),
-        "area_sqm":       _s(row.get("Площадь")),
-        "extra_facts":    _split(row.get("Факты_парс", "")),
-        "photo_urls":     _split(row.get("Фото_URLs", "")),
-        "parsed_at":      _s(row.get("Парсинг_дата")),
+        # Парсинговые данные — читаем из листа "Парсинг" по имени компании
+        "_parsed_name":   name,   # для поиска в _parsed_data()
+        "website":        _s(row.get("Сайт", "")),
         "raw":            {k: _s(v) for k, v in row.items()},
     }
+
+def _parsed_data() -> dict[str, dict]:
+    """Читает лист 'Парсинг' и возвращает dict {company_name_lower: data}."""
+    try:
+        rows = _sheet_rows("Парсинг")
+        result = {}
+        for row in rows:
+            name = _s(row.get("Компания", ""))
+            if name:
+                result[name.lower()] = row
+        return result
+    except Exception:
+        return {}
+
 
 def _load_contacts() -> list[dict]:
     contacts = []
@@ -215,6 +217,26 @@ def api_contact(contact_id: str):
     )
     if not target:
         raise HTTPException(404, f"Не найден: {contact_id}")
+
+    # Добавляем парсинговые данные из листа "Парсинг"
+    parsed = _parsed_data()
+    p = parsed.get(target["name"].lower(), {})
+    target["description"]    = _s(p.get("Описание_парс", ""))
+    target["services_list"]  = _split(p.get("Услуги_парс", ""))
+    target["equipment_list"] = _split(p.get("Оборудование_парс", ""))
+    target["materials_list"] = _split(p.get("Материалы_парс", ""))
+    target["certificates"]   = _split(p.get("Сертификаты_парс", ""))
+    target["address"]        = _s(p.get("Адрес_парс", ""))
+    target["work_hours"]     = _s(p.get("Режим_работы", ""))
+    target["founded_year"]   = _s(p.get("Год_основания", ""))
+    target["employees"]      = _s(p.get("Сотрудников", ""))
+    target["area_sqm"]       = _s(p.get("Площадь", ""))
+    target["extra_facts"]    = _split(p.get("Факты_парс", ""))
+    target["photo_urls"]     = _split(p.get("Фото_URLs", ""))
+    target["parsed_at"]      = _s(p.get("Парсинг_дата", ""))
+    if not target.get("website"):
+        target["website"]    = _s(p.get("Сайт", ""))
+
     history   = _purchase_history(target["name"])
     total_sum = sum(
         float(h["sum"].replace(",", ".").replace(" ", "") or 0)

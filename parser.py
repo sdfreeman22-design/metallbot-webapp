@@ -544,112 +544,90 @@ def _ensure_columns(ws: gspread.Worksheet) -> dict[str, int]:
     return col_map
 
 
+PARSED_SHEET = "Парсинг"   # отдельный лист для всех парсинговых данных
+
+
 def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
     """
-    Находит строку компании в листе Google Sheets и обновляет парсинговые колонки.
-    Возвращает True если строка найдена и обновлена.
+    Сохраняет данные парсинга в отдельный лист 'Парсинг'.
+    Если лист не существует — создаёт его.
+    Возвращает True при успехе.
     """
     try:
         gc = _get_sheet_client()
         ss = gc.open_by_key(GOOGLE_SHEET_ID)
-        ws = ss.worksheet(sheet_name)
 
-        col_map = _ensure_columns(ws)
+        # Работаем с отдельным листом "Парсинг" — не трогаем основные листы
+        try:
+            ws = ss.worksheet(PARSED_SHEET)
+        except gspread.exceptions.WorksheetNotFound:
+            ws = ss.add_worksheet(title=PARSED_SHEET, rows=500, cols=len(PARSED_COLUMNS) + 2)
+            ws.update([["Компания", "Лист"] + PARSED_COLUMNS])
+            logger.info("[sheets] Создан лист '%s'", PARSED_SHEET)
 
-        # Ищем строку по названию компании (колонка "Название" или "Компания")
+        # В листе "Парсинг" первые колонки: Компания | Лист | <данные...>
         all_vals = ws.get_all_values()
-        if not all_vals:
-            return False
+        headers  = all_vals[0] if all_vals else []
+        col_map  = {h: i + 1 for i, h in enumerate(headers)}
 
-        headers = all_vals[0]
-        name_col_idx = None
-        for candidate in ("Название", "Компания", "Поставщик", "Имя"):
-            if candidate in headers:
-                name_col_idx = headers.index(candidate)
-                break
+        # Добавляем недостающие колонки
+        needed = ["Компания", "Лист"] + PARSED_COLUMNS
+        for col_name in needed:
+            if col_name not in col_map:
+                new_idx = len(col_map) + 1
+                ws.update_cell(1, new_idx, col_name)
+                col_map[col_name] = new_idx
 
-        if name_col_idx is None:
-            logger.warning("[sheets] Не найдена колонка с названием компании")
-            return False
-
-        def _normalize(s: str) -> str:
-            """Убираем кавычки, скобки, лишние пробелы для сравнения."""
-            s = s.lower().strip()
-            s = re.sub(r'[«»"\'„""\(\)\[\]\.,-]', '', s)
-            s = re.sub(r'\s+', ' ', s).strip()
-            return s
-
-        target_name = _normalize(result.company_name)
-        # Ключевые слова (без ООО/ЗАО/ИП для более широкого поиска)
-        target_words = set(w for w in target_name.split() if len(w) > 2
-                           and w not in ('ооо','зао','оао','ип','пао','нко'))
-
+        # Ищем строку по имени компании (точное совпадение или добавляем новую)
         row_idx = None
-        best_score = 0
+        company_col = col_map.get("Компания", 1)
         for i, row in enumerate(all_vals[1:], start=2):
-            cell_raw = row[name_col_idx] if name_col_idx < len(row) else ""
-            cell = _normalize(cell_raw)
-            if not cell:
-                continue
-            # Точное совпадение после нормализации
-            if cell == target_name:
+            cell = row[company_col - 1].strip() if len(row) >= company_col else ""
+            if cell.lower() == result.company_name.lower():
                 row_idx = i
                 break
-            # Частичное совпадение
-            if target_name in cell or cell in target_name:
-                row_idx = i
-                break
-            # Совпадение по ключевым словам (≥70%)
-            cell_words = set(w for w in cell.split() if len(w) > 2
-                             and w not in ('ооо','зао','оао','ип','пао','нко'))
-            if target_words and cell_words:
-                common = target_words & cell_words
-                score = len(common) / max(len(target_words), len(cell_words))
-                if score >= 0.7 and score > best_score:
-                    best_score = score
-                    row_idx = i
 
         if row_idx is None:
-            logger.warning("[sheets] Компания '%s' не найдена в листе '%s'",
-                           result.company_name, sheet_name)
-            return False
+            # Добавляем новую строку
+            row_idx = len(all_vals) + 1
+            ws.update_cell(row_idx, company_col, result.company_name)
+            ws.update_cell(row_idx, col_map.get("Лист", 2), sheet_name)
+            logger.info("[sheets] Добавлена новая строка %d для '%s'", row_idx, result.company_name)
 
-        # Формируем данные для обновления
+        # Записываем данные
         import datetime
         photo_urls = " | ".join(img.url for img in result.images[:8])
         updates = {
-            "Сайт":           result.url,
-            "Описание_парс":  result.description,
-            "Услуги_парс":    " | ".join(result.services),
+            "Компания":          result.company_name,
+            "Лист":              sheet_name,
+            "Сайт":              result.url,
+            "Описание_парс":     result.description,
+            "Услуги_парс":       " | ".join(result.services),
             "Оборудование_парс": " | ".join(result.equipment),
-            "Материалы_парс": " | ".join(result.materials),
-            "Сертификаты_парс": " | ".join(result.certificates),
-            "Телефон_парс":   result.contacts.get("phone", ""),
-            "Email_парс":     result.contacts.get("email", ""),
-            "Адрес_парс":     result.contacts.get("address", ""),
-            "Режим_работы":   result.work_hours,
-            "Год_основания":  result.founded_year,
-            "Сотрудников":    result.employees,
-            "Площадь":        result.area_sqm,
-            "Факты_парс":     " | ".join(result.extra_facts),
-            "Фото_URLs":      photo_urls,
-            "Парсинг_дата":   datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "Материалы_парс":    " | ".join(result.materials),
+            "Сертификаты_парс":  " | ".join(result.certificates),
+            "Телефон_парс":      result.contacts.get("phone", ""),
+            "Email_парс":        result.contacts.get("email", ""),
+            "Адрес_парс":        result.contacts.get("address", ""),
+            "Режим_работы":      result.work_hours,
+            "Год_основания":     result.founded_year,
+            "Сотрудников":       result.employees,
+            "Площадь":           result.area_sqm,
+            "Факты_парс":        " | ".join(result.extra_facts),
+            "Фото_URLs":         photo_urls,
+            "Парсинг_дата":      datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
         }
 
-        cells = []
-        for col_name, value in updates.items():
-            if col_name in col_map and value:
-                cells.append(gspread.Cell(row_idx, col_map[col_name], value))
-
-        if cells:
-            ws.update_cells(cells, value_input_option="USER_ENTERED")
-            logger.info("[sheets] Обновлено %d ячеек для '%s' в '%s'",
-                        len(cells), result.company_name, sheet_name)
+        cells = [
+            gspread.Cell(row_idx, col_map[col], val)
+            for col, val in updates.items()
+            if col in col_map
+        ]
+        ws.update_cells(cells, value_input_option="USER_ENTERED")
+        logger.info("[sheets] Записано %d ячеек для '%s' в лист '%s'",
+                    len(cells), result.company_name, PARSED_SHEET)
         return True
 
-    except gspread.exceptions.WorksheetNotFound:
-        logger.warning("[sheets] Лист '%s' не найден", sheet_name)
-        return False
     except Exception as e:
         logger.error("[sheets] Ошибка сохранения: %s", e)
         return False
