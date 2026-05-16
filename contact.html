@@ -144,9 +144,8 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-s
   </div>
   <div class="filters">
     <span class="chip active" data-kind="">Все</span>
-    <span class="chip" data-kind="Кооператор">Кооператоры</span>
-    <span class="chip" data-kind="Поставщик">Поставщики</span>
-    <span class="chip" data-kind="Клиент">Клиенты</span>
+    <span class="chip" data-kind="coop">Кооператоры</span>
+    <span class="chip" data-kind="supplier">Поставщики</span>
   </div>
   <div id="list"></div>
 
@@ -170,7 +169,9 @@ async function loadContacts() {
   try {
     const r = await fetch('/api/contacts');
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    allContacts = await r.json();
+    const data = await r.json();
+    // API returns {items: [...], total: N}
+    allContacts = Array.isArray(data) ? data : (data.items || []);
     document.getElementById('hdr-sub').textContent = allContacts.length + ' контрагентов';
     render();
   } catch (e) {
@@ -197,25 +198,30 @@ function render() {
     return;
   }
 
-  const kindIcon = { 'Кооператор': '🤝', 'Поставщик': '🏭', 'Клиент': '👤' };
-  const tagClass = { 'Кооператор': 't-coop', 'Поставщик': 't-supp' };
+  const kindIcon = { 'coop': '🤝', 'supplier': '🏭' };
+  const kindLabel = { 'coop': 'Кооператор', 'supplier': 'Поставщик' };
+  const tagClass  = { 'coop': 't-coop', 'supplier': 't-supp' };
 
   listEl.innerHTML = filtered.map(c => {
     const icon = kindIcon[c.kind] || '👤';
-    const tagsHtml = (c.tags || []).slice(0,3).map(t =>
-      `<span class="tag ${tagClass[c.kind]||''}">${esc(t)}</span>`).join(' ');
-    const stars = c.rating ? '★'.repeat(Math.round(c.rating)) + '☆'.repeat(5 - Math.round(c.rating)) : '';
+    // Build sub-tags from specialization/service fields
+    const tagSrcs = [c.specialization, c.service].filter(Boolean);
+    const tagsHtml = tagSrcs.slice(0,2).map(t =>
+      `<span class="tag ${tagClass[c.kind]||''}">${esc(t.slice(0,20))}</span>`).join(' ');
+    const rating = parseFloat(c.rating) || 0;
+    const stars = rating ? '★'.repeat(Math.round(rating)) + '☆'.repeat(5 - Math.round(rating)) : '';
+    const kindName = kindLabel[c.kind] || c.kind || '';
     return `
-      <div class="card" onclick="openDetail('${esc(c.enc_id || c.id)}')">
+      <div class="card" onclick="openDetail('${esc(encodeURIComponent(c.name))}')">
         <div class="avatar">${icon}</div>
         <div class="card-body">
           <div class="card-name">${esc(c.name)}</div>
-          <div class="card-sub">${esc(c.city || c.kind || '')}</div>
+          <div class="card-sub">${esc(c.city || kindName)}</div>
           ${tagsHtml}
         </div>
         <div class="card-right">
-          ${c.total_sum ? `<div class="card-sum">${fmtSum(c.total_sum)}</div>` : ''}
-          ${stars ? `<div class="card-rating" style="color:var(--warn)">${stars}</div>` : ''}
+          ${stars ? `<div class="card-rating" style="color:var(--warn);font-size:11px">${stars}</div>` : ''}
+          ${kindName ? `<div style="font-size:11px;color:var(--ink3);margin-top:3px">${esc(kindName)}</div>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -240,37 +246,49 @@ async function openDetail(encId) {
 
 // ── Render detail ──────────────────────────────────────────────────────────
 function renderDetail(c) {
-  const kindIcon = { 'Кооператор': '🤝', 'Поставщик': '🏭', 'Клиент': '👤' };
-  const icon = kindIcon[c.kind] || '👤';
-  const stars = c.rating ? '★'.repeat(Math.round(c.rating)) + '☆'.repeat(5 - Math.round(c.rating)) : '—';
+  const kindIcon  = { 'coop': '🤝', 'supplier': '🏭' };
+  const kindLabel = { 'coop': 'Кооператор', 'supplier': 'Поставщик' };
+  const icon  = kindIcon[c.kind] || '👤';
+  const kname = kindLabel[c.kind] || c.kind || '';
+
+  const rating = parseFloat(c.rating) || 0;
+  const stars  = rating ? '★'.repeat(Math.round(rating)) + '☆'.repeat(5 - Math.round(rating)) : '—';
 
   const phone = c.phone || '';
-  const tgUser = c.telegram || '';
+  // Stats come under c.stats
+  const stats = c.stats || {};
 
   const actionBtns = [
     phone ? `<button class="btn btn-call" onclick="window.open('tel:${esc(phone)}')">📞 Позвонить</button>` : '',
-    tgUser ? `<button class="btn btn-tg" onclick="window.open('https://t.me/${esc(tgUser.replace('@',''))}')">✈ Telegram</button>` : '',
   ].filter(Boolean).join('');
 
   const infoFields = [
-    ['Тип', c.kind],
-    ['Город', c.city],
-    ['Телефон', phone],
-    ['Email', c.email],
-    ['ИНН', c.inn],
-    ['Компания', c.company],
-    ['Примечание', c.note],
+    ['Тип',           kname],
+    ['Город',         c.city],
+    ['Телефон',       phone],
+    ['Email',         c.email],
+    ['Контакт',       c.contact],
+    ['Специализация', c.specialization],
+    ['Услуги',        c.service],
+    ['Материалы',     c.materials],
+    ['Оборудование',  c.equipment],
+    ['Статус',        c.status],
+    ['Уровень цен',   c.price_level],
+    ['Примечание',    c.notes],
+    ['Добавлено',     c.added],
   ].filter(([,v]) => v).map(([l, v]) =>
     `<div class="info-row"><span class="info-label">${esc(l)}</span><span class="info-value">${esc(v)}</span></div>`
   ).join('');
 
-  const history = (c.purchases || []);
+  // API returns c.history (not c.purchases)
+  const history = c.history || [];
   const histHtml = history.length
     ? history.map(h => `
         <div class="hist-item">
-          <div class="hist-date">${esc(h.date || '')}</div>
-          <div class="hist-desc">${esc(h.description || h.item || '')}</div>
-          ${h.sum ? `<div class="hist-sum">${fmtSum(h.sum)}</div>` : ''}
+          <div class="hist-date">${esc(h.date || '')}${h.invoice ? ' · №' + esc(h.invoice) : ''}</div>
+          <div class="hist-desc">${esc(h.name || '')}${h.mark ? ' ' + esc(h.mark) : ''}${h.size ? ' ' + esc(h.size) : ''}</div>
+          ${h.qty ? `<div style="font-size:12px;color:var(--ink2)">${esc(h.qty)} ${esc(h.unit||'')}</div>` : ''}
+          ${h.sum ? `<div class="hist-sum">${esc(h.sum)} ₽</div>` : ''}
         </div>`).join('')
     : '<div class="empty" style="padding:20px"><div class="empty-ico" style="font-size:32px">📋</div>История пуста</div>';
 
@@ -281,7 +299,7 @@ function renderDetail(c) {
         <div class="det-avatar">${icon}</div>
         <div>
           <div class="det-name">${esc(c.name)}</div>
-          <div class="det-kind">${esc(c.kind || '')}</div>
+          <div class="det-kind">${esc(kname)}</div>
           <div class="det-city">${esc(c.city || '')}</div>
         </div>
       </div>
@@ -289,15 +307,15 @@ function renderDetail(c) {
       <!-- Stats -->
       <div class="stats-row">
         <div class="stat-box">
-          <div class="stat-val" style="color:var(--warn)">${stars}</div>
+          <div class="stat-val" style="color:var(--warn);font-size:13px">${stars}</div>
           <div class="stat-lbl">Рейтинг</div>
         </div>
         <div class="stat-box">
-          <div class="stat-val">${c.total_deals ?? '—'}</div>
-          <div class="stat-lbl">Сделок</div>
+          <div class="stat-val">${stats.purchases_count ?? '—'}</div>
+          <div class="stat-lbl">Закупок</div>
         </div>
         <div class="stat-box">
-          <div class="stat-val">${c.total_sum ? fmtSum(c.total_sum) : '—'}</div>
+          <div class="stat-val">${stats.total_sum ? fmtSum(stats.total_sum) : '—'}</div>
           <div class="stat-lbl">Оборот</div>
         </div>
       </div>
@@ -309,7 +327,7 @@ function renderDetail(c) {
       ${infoFields ? `<div class="section-title">Информация</div><div class="info-card">${infoFields}</div>` : ''}
 
       <!-- History -->
-      <div class="section-title">История покупок</div>
+      <div class="section-title">История закупок</div>
       ${histHtml}
       <div style="height:32px"></div>
     </div>`;
