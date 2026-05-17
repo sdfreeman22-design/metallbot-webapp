@@ -1,4 +1,4 @@
-"""
+﻿"""
 METALLBOT Mini App — локальный HTTP-сервер.
 Автономный: читает Google Sheets напрямую через .env родительской папки.
 Запуск: python server.py  (из папки webapp/)
@@ -107,30 +107,23 @@ def _s(v: Any) -> str:
     return s
 
 def _clean_phone(p: str) -> str:
-    """Нормализует телефон: убирает умные кавычки, длинные тире, неразрывные пробелы."""
-    import unicodedata
+    """
+    Нормализует телефон до формата +7 (XXX) XXX-XX-XX.
+    Принимает любой мусор: кавычки, тире, пробелы, скобки.
+    Извлекает только цифры и собирает стандартный российский формат.
+    """
+    import unicodedata, re as _re
     if not p:
         return p
-    # Нормализуем unicode
     p = unicodedata.normalize("NFKC", p)
-    # Убираем невидимые/мягкие символы
-    invisible = "­​‌‍﻿⁠"
-    for ch in invisible:
-        p = p.replace(ch, "")
-    # Неразрывные и узкие пробелы → обычный пробел
-    for ch in "           ":
-        p = p.replace(ch, " ")
-    # Кавычки — убираем
-    for ch in '«»„“”‘’‹›':
-        p = p.replace(ch, "")
-    # Длинные тире → обычный дефис
-    for ch in "–—−―":
-        p = p.replace(ch, "-")
-    # Схлопываем пробелы
-    import re as _re
-    p = _re.sub(r" +", " ", p).strip()
-    return p
-
+    digits = _re.sub(r"\D", "", p)
+    if len(digits) == 11 and digits[0] in ("7", "8"):
+        digits = "7" + digits[1:]
+    elif len(digits) == 10:
+        digits = "7" + digits
+    else:
+        return _re.sub(r"\s+", " ", p).strip()
+    return f"+{digits[0]} ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
 def _split(val: str) -> list[str]:
     """Разбивает строку вида 'a | b | c' в список."""
     if not val:
@@ -395,7 +388,7 @@ def api_contact_update(contact_id: str, body: ContactUpdate):
                 cells.append(_gs.Cell(row_idx, target_col, value))
 
             if cells:
-                ws.update_cells(cells, value_input_option="USER_ENTERED")
+                ws.update_cells(cells, value_input_option="RAW")
                 updated_sheets.append(sheet_name)
                 _cache.pop(sheet_name, None)   # сброс кэша этого листа
 

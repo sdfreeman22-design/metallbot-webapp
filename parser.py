@@ -1,4 +1,4 @@
-"""
+﻿"""
 METALLBOT — Парсер сайтов партнёров.
 Извлекает текст, структурированные данные и фотографии с сайта компании.
 Использует Claude AI для интеллектуального анализа контента.
@@ -30,6 +30,19 @@ from bs4 import BeautifulSoup, Comment
 from google.oauth2.service_account import Credentials
 
 logger = logging.getLogger("metallbot.parser")
+def _normalize_phone(p: str) -> str:
+    """Нормализует телефон до +7 (XXX) XXX-XX-XX, извлекая только цифры."""
+    if not p:
+        return p
+    digits = re.sub(r'\D', '', p)
+    if len(digits) == 11 and digits[0] in ('7', '8'):
+        digits = '7' + digits[1:]
+    elif len(digits) == 10:
+        digits = '7' + digits
+    else:
+        return re.sub(r'\s+', ' ', p).strip()
+    return f'+{digits[0]} ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}'
+
 
 # ── Настройки ─────────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -104,53 +117,135 @@ def _slugify(text: str, max_len: int = 60) -> str:
 def _extract_contacts_direct(soup: BeautifulSoup) -> dict:
     """
     Извлекает контакты напрямую из HTML — до удаления footer/header.
-    Ищет tel:, mailto: ссылки и телефоны через регулярки.
+    Многослойный поиск: tel:/mailto:, data-*, JSON-LD, itemprop, regex.
     Возвращает {'phone': '...', 'email': '...', 'address': '...'}.
     """
+    import json as _json_local
+
     result = {"phone": "", "email": "", "address": ""}
 
-    # 1. tel: ссылки — самый надёжный источник
+    def _valid_phone(p: str) -> bool:
+        """Минимум 10 цифр в строке."""
+        return len(re.sub(r'\D', '', p)) >= 10
+
+    # ── 1. tel:/mailto: ссылки ────────────────────────────────────────────────
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        if href.startswith("tel:"):
+        if href.startswith("tel:") and not result["phone"]:
             phone = re.sub(r"[^\d+\-\(\)\s]", "", href[4:]).strip()
-            if phone and not result["phone"]:
+            if phone and _valid_phone(phone):
                 result["phone"] = phone
-        elif href.startswith("mailto:"):
+        elif href.startswith("mailto:") and not result["email"]:
             email = href[7:].split("?")[0].strip()
-            if email and not result["email"]:
+            if email and "@" in email:
                 result["email"] = email
 
-    # 2. Если tel: не нашли — ищем телефоны регулярками в тексте всей страницы
+    # ── 2. JSON-LD / Schema.org (SEO-разметка — очень надёжный источник) ─────
+    if not result["phone"] or not result["email"]:
+        for script in soup.find_all("script", type="application/ld+json"):
+            try:
+                raw_json = script.string or ""
+                if not raw_json.strip():
+                    continue
+                data = _json_local.loads(raw_json)
+                items = data if isinstance(data, list) else [data]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if not result["phone"]:
+                        tel = item.get("telephone") or item.get("phone") or ""
+                        if tel and _valid_phone(str(tel)):
+                            result["phone"] = str(tel).strip()
+                    if not result["email"]:
+                        em = item.get("email") or ""
+                        if em and "@" in str(em):
+                            result["email"] = str(em).strip()
+                    if not result["address"]:
+                        addr = item.get("address", {})
+                        if isinstance(addr, dict):
+                            parts = [
+                                addr.get("streetAddress", ""),
+                                addr.get("addressLocality", ""),
+                                addr.get("addressRegion", ""),
+                            ]
+                            addr_str = ", ".join(p for p in parts if p)
+                            if addr_str:
+                                result["address"] = addr_str
+                        elif isinstance(addr, str) and len(addr) > 5:
+                            result["address"] = addr
+            except Exception:
+                pass
+
+    # ── 3. itemprop микроразметка ─────────────────────────────────────────────
+    if not result["phone"]:
+        for el in soup.find_all(attrs={"itemprop": "telephone"}):
+            val = (el.get("content") or el.get_text(strip=True) or "").strip()
+            if val and _valid_phone(val):
+                result["phone"] = val
+                break
+
+    if not result["email"]:
+        for el in soup.find_all(attrs={"itemprop": "email"}):
+            val = (el.get("content") or el.get_text(strip=True) or "").strip()
+            if val and "@" in val:
+                result["email"] = val
+                break
+
+    if not result["address"]:
+        for el in soup.find_all(attrs={"itemprop": "address"}):
+            val = (el.get("content") or el.get_text(" ", strip=True) or "").strip()
+            if val and len(val) > 5:
+                result["address"] = re.sub(r"\s+", " ", val)[:200]
+                break
+
+    # ── 4. data-* атрибуты (антиспам: номер прячут в data-phone) ─────────────
+    if not result["phone"]:
+        for el in soup.find_all(True):
+            for attr_name, attr_val in el.attrs.items():
+                if isinstance(attr_val, str) and ("phone" in attr_name.lower() or "tel" in attr_name.lower()):
+                    if _valid_phone(attr_val):
+                        result["phone"] = attr_val.strip()
+                        break
+            if result["phone"]:
+                break
+
+    # ── 5. Regex по полному тексту страницы ──────────────────────────────────
     if not result["phone"]:
         full_text = soup.get_text(" ", strip=True)
         phone_patterns = [
-            r'(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}',
+            # +7 или 8 с разными разделителями
+            r'(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}',
+            # Сплошные цифры
             r'\+7\d{10}',
             r'8\d{10}',
+            r'7\d{10}',
+            # Без кода страны но со скобками: (499) 123-45-67
+            r'\(\d{3,4}\)[\s\-]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}',
         ]
         for pat in phone_patterns:
             m = re.search(pat, full_text)
             if m:
-                result["phone"] = m.group(0).strip()
-                break
+                candidate = m.group(0).strip()
+                if _valid_phone(candidate):
+                    result["phone"] = candidate
+                    break
 
-    # 3. Email регулярками если mailto: не нашли
+    # ── 6. Email regex ────────────────────────────────────────────────────────
     if not result["email"]:
         full_text = soup.get_text(" ", strip=True)
         m = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}', full_text)
         if m:
             result["email"] = m.group(0).strip()
 
-    # 4. Адрес — ищем в footer/address тегах
-    for tag in soup.find_all(["address", "footer"]):
-        text = tag.get_text(" ", strip=True)
-        if text and len(text) > 10 and not result["address"]:
-            # Берём первые 200 символов чистого текста адреса
-            cleaned = re.sub(r"\s+", " ", text).strip()[:200]
-            result["address"] = cleaned
-            break
+    # ── 7. Адрес: footer/address теги ─────────────────────────────────────────
+    if not result["address"]:
+        for tag in soup.find_all(["address", "footer"]):
+            text = tag.get_text(" ", strip=True)
+            if text and len(text) > 10:
+                result["address"] = re.sub(r"\s+", " ", text).strip()[:200]
+                break
 
+    logger.info("[parser] Контакты: phone=%r email=%r", result["phone"], result["email"])
     return result
 
 
@@ -773,7 +868,7 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
             "Оборудование_парс": " | ".join(result.equipment),
             "Материалы_парс":    " | ".join(result.materials),
             "Сертификаты_парс":  " | ".join(result.certificates),
-            "Телефон_парс":      result.contacts.get("phone", ""),
+            "Телефон_парс":      _normalize_phone(result.contacts.get("phone", "")),
             "Email_парс":        result.contacts.get("email", ""),
             "Адрес_парс":        result.contacts.get("address", ""),
             "Режим_работы":      result.work_hours,
@@ -790,7 +885,7 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
             for col, val in updates.items()
             if col in col_map
         ]
-        ws.update_cells(cells, value_input_option="USER_ENTERED")
+        ws.update_cells(cells, value_input_option="RAW")
         logger.info("[sheets] Записано %d ячеек для '%s' в лист '%s'",
                     len(cells), result.company_name, PARSED_SHEET)
         return True
