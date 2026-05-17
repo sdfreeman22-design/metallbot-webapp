@@ -169,15 +169,34 @@ def _parsed_data() -> dict[str, dict]:
 
 
 def _load_contacts() -> list[dict]:
+    coop_list = [_row_to_contact(r, "coop")
+                 for r in _sheet_rows("Кооперация") if _row_to_contact(r, "coop")["name"]]
+    supp_list = [_row_to_contact(r, "supplier")
+                 for r in _sheet_rows("Поставщики") if _row_to_contact(r, "supplier")["name"]]
+
+    coop_map = {_norm(c["name"]): c for c in coop_list}
+    supp_map = {_norm(c["name"]): c for c in supp_list}
+    both_keys = set(coop_map) & set(supp_map)
+
     contacts = []
-    for sheet, kind in [
-        ("Кооперация", "coop"),
-        ("Поставщики",  "supplier"),
-    ]:
-        for r in _sheet_rows(sheet):
-            c = _row_to_contact(r, kind)
-            if c["name"]:
-                contacts.append(c)
+    seen = set()
+
+    for c in coop_list:
+        key = _norm(c["name"])
+        if key in both_keys:
+            # Объединяем: берём coop-данные, дополняем supplier-данными
+            merged = {**supp_map[key], **{k: v for k, v in c.items() if v}}
+            merged["kind"] = "both"
+            contacts.append(merged)
+        else:
+            contacts.append(c)
+        seen.add(key)
+
+    for c in supp_list:
+        key = _norm(c["name"])
+        if key not in seen:
+            contacts.append(c)
+
     return contacts
 
 def _purchase_history(supplier: str) -> list[dict]:

@@ -86,6 +86,7 @@ class ParseResult:
     extra_facts: list[str] = field(default_factory=list)
     _extracted_company_name: str = ""  # имя компании извлечённое с сайта
 
+    company_type: str = "coop"   # "coop" | "supplier" | "both"
     images: list[ParsedImage] = field(default_factory=list)
     raw_text: str = ""
     parse_duration_sec: float = 0.0
@@ -337,6 +338,10 @@ class SiteParser:
                 extracted = ai_data.get("company_name", "").strip()
                 if extracted and len(extracted) > 3:
                     result._extracted_company_name = extracted
+                # Тип компании
+                ctype = ai_data.get("company_type", "coop").strip().lower()
+                if ctype in ("coop", "supplier", "both"):
+                    result.company_type = ctype
             except anthropic.APIConnectionError:
                 logger.warning("[parser] Claude API недоступен — пропускаем AI-анализ")
             except anthropic.RateLimitError:
@@ -458,6 +463,7 @@ class SiteParser:
 Верни ТОЛЬКО валидный JSON без markdown-обёртки, в точно таком формате:
 {{
   "company_name": "Полное официальное название компании (ООО/АО/ИП + название)",
+  "company_type": "coop ИЛИ supplier ИЛИ both — coop если выполняют работы/услуги на заказ (обработка, производство, покрытие, сварка и т.д.), supplier если продают материалы/комплектующие/оборудование, both если и то и другое",
   "description": "краткое описание компании 2-4 предложения",
   "services": ["услуга 1", "услуга 2"],
   "equipment": ["станок/оборудование 1", "станок 2"],
