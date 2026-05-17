@@ -100,11 +100,63 @@ def _slugify(text: str, max_len: int = 60) -> str:
     return text[:max_len] or "company"
 
 
+def _extract_contacts_direct(soup: BeautifulSoup) -> dict:
+    """
+    Извлекает контакты напрямую из HTML — до удаления footer/header.
+    Ищет tel:, mailto: ссылки и телефоны через регулярки.
+    Возвращает {'phone': '...', 'email': '...', 'address': '...'}.
+    """
+    result = {"phone": "", "email": "", "address": ""}
+
+    # 1. tel: ссылки — самый надёжный источник
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        if href.startswith("tel:"):
+            phone = re.sub(r"[^\d+\-\(\)\s]", "", href[4:]).strip()
+            if phone and not result["phone"]:
+                result["phone"] = phone
+        elif href.startswith("mailto:"):
+            email = href[7:].split("?")[0].strip()
+            if email and not result["email"]:
+                result["email"] = email
+
+    # 2. Если tel: не нашли — ищем телефоны регулярками в тексте всей страницы
+    if not result["phone"]:
+        full_text = soup.get_text(" ", strip=True)
+        phone_patterns = [
+            r'(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}',
+            r'\+7\d{10}',
+            r'8\d{10}',
+        ]
+        for pat in phone_patterns:
+            m = re.search(pat, full_text)
+            if m:
+                result["phone"] = m.group(0).strip()
+                break
+
+    # 3. Email регулярками если mailto: не нашли
+    if not result["email"]:
+        full_text = soup.get_text(" ", strip=True)
+        m = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}', full_text)
+        if m:
+            result["email"] = m.group(0).strip()
+
+    # 4. Адрес — ищем в footer/address тегах
+    for tag in soup.find_all(["address", "footer"]):
+        text = tag.get_text(" ", strip=True)
+        if text and len(text) > 10 and not result["address"]:
+            # Берём первые 200 символов чистого текста адреса
+            cleaned = re.sub(r"\s+", " ", text).strip()[:200]
+            result["address"] = cleaned
+            break
+
+    return result
+
+
 def _extract_text(soup: BeautifulSoup) -> str:
     """Извлекает чистый текст страницы: убирает скрипты, стили, комментарии."""
-    # Удаляем шумные теги
+    # Удаляем шумные теги (footer/header НЕ удаляем — там контакты!)
     for tag in soup(["script", "style", "noscript", "iframe",
-                     "nav", "footer", "header", "aside", "form",
                      "button", "input", "select", "textarea"]):
         tag.decompose()
     for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
@@ -250,6 +302,11 @@ class SiteParser:
             result.error = f"Ошибка разбора HTML: {e}"
             return result
 
+        # Сначала извлекаем контакты напрямую (tel:/mailto: ссылки, regex)
+        # — до удаления тегов, пока footer/header ещё на месте
+        direct_contacts = _extract_contacts_direct(soup)
+        logger.info("[parser] Прямые контакты: %s", direct_contacts)
+
         raw_text = _extract_text(soup)
         result.raw_text = raw_text[:MAX_TEXT_CHARS]
 
@@ -262,7 +319,8 @@ class SiteParser:
             await _progress("🤖 Claude AI анализирует контент...")
             try:
                 ai_data = await SiteParser._extract_with_claude(
-                    result.raw_text, result.company_name, result.url
+                    result.raw_text, result.company_name, result.url,
+                    hint_contacts=direct_contacts,
                 )
                 result.description    = ai_data.get("description", "")
                 result.services       = ai_data.get("services", [])
@@ -290,11 +348,30 @@ class SiteParser:
         elif not ANTHROPIC_API_KEY:
             logger.warning("[parser] ANTHROPIC_API_KEY не задан — AI-анализ отключён")
 
+        # ── Дополняем контакты прямым парсингом если Claude не нашёл ─────────
+        if not result.contacts.get("phone") and direct_contacts.get("phone"):
+            result.contacts["phone"] = direct_contacts["phone"]
+            logger.info("[parser] Телефон из прямого парсинга: %s", direct_contacts["phone"])
+        if not result.contacts.get("email") and direct_contacts.get("email"):
+            result.contacts["email"] = direct_contacts["email"]
+            logger.info("[parser] Email из прямого парсинга: %s", direct_contacts["email"])
+        if not result.contacts.get("address") and direct_contacts.get("address"):
+            result.contacts["address"] = direct_contacts["address"]
+
         # ── 4. Сбор и скачивание фото ─────────────────────────────────────────
         await _progress("🖼 Собираю изображения...")
         img_candidates = _collect_image_urls(soup, result.url)
-        # Фильтруем явно не-фото
+        # Базовая фильтрация — убираем явные иконки/логотипы
         img_candidates = [(u, a) for u, a in img_candidates if _is_likely_photo(u)]
+
+        if img_candidates and ANTHROPIC_API_KEY:
+            # Claude отбирает самые полезные фото (цех, оборудование, продукция)
+            await _progress(f"🤖 Claude отбирает лучшие фото из {len(img_candidates)}...")
+            try:
+                img_candidates = await SiteParser._select_images_with_claude(img_candidates)
+            except Exception as e:
+                logger.warning("[parser] Claude image select error: %s", e)
+                img_candidates = img_candidates[:MAX_IMAGES]
 
         if img_candidates:
             await _progress(f"📥 Скачиваю фото ({min(len(img_candidates), MAX_IMAGES)} шт.)...")
@@ -354,12 +431,26 @@ class SiteParser:
 
     # ── Claude AI ─────────────────────────────────────────────────────────────
     @staticmethod
-    async def _extract_with_claude(text: str, company: str, url: str) -> dict:
+    async def _extract_with_claude(text: str, company: str, url: str,
+                                    hint_contacts: dict | None = None) -> dict:
         """Отправляет текст в Claude и получает структурированный JSON."""
         client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
+        # Подсказка для Claude если нашли контакты прямым парсингом
+        hint_block = ""
+        if hint_contacts and any(hint_contacts.values()):
+            parts = []
+            if hint_contacts.get("phone"):
+                parts.append(f'Телефон: {hint_contacts["phone"]}')
+            if hint_contacts.get("email"):
+                parts.append(f'Email: {hint_contacts["email"]}')
+            if hint_contacts.get("address"):
+                parts.append(f'Адрес: {hint_contacts["address"][:100]}')
+            if parts:
+                hint_block = "\n\nКОНТАКТЫ НАЙДЕННЫЕ АВТОМАТИЧЕСКИ (используй их):\n" + "\n".join(parts)
+
         prompt = f"""Ты помощник для анализа сайтов промышленных компаний.
-Проанализируй текст сайта ({url}) и извлеки информацию в JSON.
+Проанализируй текст сайта ({url}) и извлеки информацию в JSON.{hint_block}
 
 ТЕКСТ САЙТА:
 {text[:MAX_TEXT_CHARS]}
@@ -403,6 +494,67 @@ class SiteParser:
             raise ValueError("Claude не вернул JSON")
         import json
         return json.loads(m.group(0))
+
+    # ── Claude: отбор полезных фото ──────────────────────────────────────────
+    @staticmethod
+    async def _select_images_with_claude(
+        candidates: list[tuple[str, str]]
+    ) -> list[tuple[str, str]]:
+        """
+        Просит Claude Haiku выбрать из кандидатов наиболее полезные фото
+        для карточки промышленной компании: цех, оборудование, продукция.
+        Возвращает отфильтрованный список (не более MAX_IMAGES).
+        """
+        if not candidates:
+            return candidates
+
+        # Берём до 30 кандидатов для анализа (больше — дольше и дороже)
+        pool = candidates[:30]
+
+        lines = []
+        for i, (url, alt) in enumerate(pool):
+            fname = Path(urlparse(url).path).name[:40]
+            alt_str = alt.strip()[:40] if alt.strip() else "—"
+            lines.append(f"{i}: {fname} | alt={alt_str}")
+
+        import json as _json
+        client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+        prompt = f"""Ты помогаешь отбирать фото для карточки промышленной компании.
+Из списка изображений выбери 5-8 ЛУЧШИХ — тех, что скорее всего показывают:
+- производственный цех, станки, оборудование
+- готовую продукцию, детали, изделия
+- территорию завода, склад
+
+ИСКЛЮЧАЙ изображения которые выглядят как: логотип, иконка, баннер с текстом, фоновый паттерн, фото людей/офиса, сертификаты (их покажем отдельно).
+
+СПИСОК (индекс: имя файла | alt):
+{chr(10).join(lines)}
+
+Верни ТОЛЬКО JSON: {{"selected": [0, 2, 5, ...]}} — список индексов лучших фото.
+Если подходящих нет — верни {{"selected": []}}."""
+
+        msg = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=20,
+        )
+        raw = msg.content[0].text.strip()
+        m = re.search(r"\{[\s\S]+\}", raw)
+        if not m:
+            return pool[:MAX_IMAGES]
+
+        data = _json.loads(m.group(0))
+        indices = data.get("selected", [])
+        if not indices:
+            # Claude не нашёл подходящих — берём первые MAX_IMAGES
+            return pool[:MAX_IMAGES]
+
+        selected = [pool[i] for i in indices if 0 <= i < len(pool)]
+        logger.info("[parser] Claude выбрал %d фото из %d кандидатов", len(selected), len(pool))
+        return selected[:MAX_IMAGES]
 
     # ── Скачивание фото ───────────────────────────────────────────────────────
     @staticmethod

@@ -127,6 +127,17 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .esv:disabled{opacity:.5;cursor:not-allowed}
 .ecn{flex:0 0 auto;padding:14px 20px;border-radius:var(--r);border:1px solid var(--border2);background:var(--surface);color:var(--ink2);font-size:13px;cursor:pointer;font-family:var(--sans)}
 .dsk{padding:60px 20px 20px}.dsk-h{margin-bottom:28px}.dsk-s{display:flex;gap:6px;margin-bottom:20px}.dsk-st{flex:1;height:64px;border-radius:var(--r)}.dsk-b{height:60px;border-radius:var(--r);margin-bottom:10px}
+
+/* gallery */
+.gal{display:flex;gap:6px;padding:0 20px 16px;overflow-x:auto;scrollbar-width:none}.gal::-webkit-scrollbar{display:none}
+.gal img{height:110px;width:auto;min-width:80px;max-width:180px;border-radius:var(--r);object-fit:cover;flex-shrink:0;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:opacity .2s}
+.gal img:active{opacity:.6}
+
+/* lightbox */
+#lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;align-items:center;justify-content:center}
+#lb.open{display:flex}
+#lb img{max-width:95vw;max-height:90vh;border-radius:var(--r);object-fit:contain}
+#lb-x{position:absolute;top:16px;right:16px;font-size:24px;color:#fff;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);border-radius:50%}
 </style>
 </head>
 <body>
@@ -137,6 +148,9 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
   <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span></div>
   <div id="list"></div>
   <div id="det"></div>
+  <!-- lightbox -->
+  <div id="lb"><div id="lb-x" onclick="clLb()">✕</div><img id="lb-img" src="" alt=""></div>
+
   <div id="em"><div class="es">
     <h2>Редактировать</h2>
     <div class="ef"><label>Телефон</label><input id="ep" type="tel" placeholder="+7 (XXX) XXX-XX-XX"></div>
@@ -266,6 +280,16 @@ function rD(c){
   // Сохраняем для редактирования
   window._c=c;
 
+  // Галерея — используем прокси для внешних URL
+  const BASE=window.location.origin;
+  function proxyUrl(u){return u.startsWith('/')?u:BASE+'/api/img?url='+encodeURIComponent(u);}
+  const photos=c.photo_urls||[];
+  const galHtml=photos.length
+    ?'<div class="dsec">Фото производства</div><div class="gal">'
+      +photos.map(u=>'<img src="'+proxyUrl(u)+'" loading="lazy" onerror="this.style.display=\'none\'" onclick="opLb(\''+proxyUrl(u)+'\')">')
+      .join('')+'</div>'
+    :'';
+
   $('det').innerHTML=
     '<div style="padding-top:env(safe-area-inset-top)"><div class="dh">'
     +'<button class="bb" onclick="clD()">‹ Назад</button>'
@@ -283,7 +307,7 @@ function rD(c){
     +(c.employees?'<div class="dst"><div class="dv" style="font-size:11px">'+E(c.employees)+'</div><div class="dll">Штат</div></div>':'')
     +'</div>'
     +(c.phone?'<div class="dac"><button class="dbtn" onclick="haptic(\'medium\');window.open(\'tel:'+E(c.phone.replace(/\s/g,''))+'\')">📞 Позвонить</button></div>':'')
-    +desc+tagsH+certs+facts
+    +galHtml+desc+tagsH+certs+facts
     +(info?'<div class="dsec">Контакты</div><div class="dcd">'+info+'</div>':'')
     +badge
     +'<div class="dsec">История закупок</div>'+hist
@@ -379,6 +403,11 @@ async function svC(){
   }
 }
 $('em').addEventListener('click',function(e){if(e.target===this)clEm()});
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+function opLb(url){haptic('light');$('lb-img').src=url;$('lb').classList.add('open')}
+function clLb(){$('lb').classList.remove('open');$('lb-img').src=''}
+$('lb').addEventListener('click',function(e){if(e.target===this||e.target===$('lb-img'))clLb()});
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 load();
