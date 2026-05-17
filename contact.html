@@ -114,6 +114,8 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .bb:active{color:var(--red);border-color:var(--red)}
 .be{position:absolute;top:24px;right:20px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:11px;padding:6px 12px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
 .be:active{color:var(--red);border-color:var(--red)}
+.bdl{position:absolute;top:60px;right:20px;background:rgba(255,20,100,.08);border:1px solid rgba(255,20,100,.25);border-radius:var(--r);color:var(--red);font-size:10px;padding:5px 10px;cursor:pointer;font-family:var(--mono);font-weight:600;letter-spacing:.5px;transition:all .15s}
+.bdl:active{background:rgba(255,20,100,.2)}
 
 #em{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,6,12,.7);align-items:flex-end;justify-content:center;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 #em.open{display:flex}
@@ -173,6 +175,15 @@ const tg = window.Telegram?.WebApp;
 if(tg){ tg.ready(); tg.expand(); }
 function haptic(type='light'){ try{ tg?.HapticFeedback?.impactOccurred(type) }catch(e){} }
 function hapticNotify(type='success'){ try{ tg?.HapticFeedback?.notificationOccurred(type) }catch(e){} }
+
+// Проверка прав: только OWNER видит кнопку удаления
+const ADMIN_IDS = [978434417];
+function isAdmin(){
+  try{
+    const uid = tg?.initDataUnsafe?.user?.id;
+    return uid && ADMIN_IDS.includes(uid);
+  }catch(e){ return false; }
+}
 
 // ── State ──────────────────────────────────────────────────────────────────
 let A=[], aK='', sQ='';
@@ -297,6 +308,7 @@ function rD(c){
     '<div style="padding-top:env(safe-area-inset-top)"><div class="dh">'
     +'<button class="bb" onclick="clD()">‹ Назад</button>'
     +'<button class="be" onclick="opE()">✎ Изменить</button>'
+    +(isAdmin()?'<button class="bdl" onclick="dlC()">✕ Удалить</button>':'')
     +'<div class="dn">'+E(c.name)+'</div>'
     +'<div class="dk">'+E(kn)+'</div>'
     +'<div class="dc">'+E(c.city||'')+'</div>'
@@ -368,6 +380,35 @@ function opE(){
   $('em').classList.add('open');
 }
 function clEm(){ $('em').classList.remove('open'); }
+
+// ── Delete company ─────────────────────────────────────────────────────────
+async function dlC(){
+  const c=window._c;
+  if(!c) return;
+  haptic('heavy');
+  const ok=confirm('Удалить «'+c.name+'» из всех баз?\n\nЭто действие нельзя отменить.');
+  if(!ok) return;
+  haptic('heavy');
+  try{
+    const r=await fetch('/api/contact/'+encodeURIComponent(c.name),{method:'DELETE'});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.detail||'Ошибка');
+    hapticNotify('success');
+    clD();
+    // Убираем карточку из списка без перезагрузки
+    window._contacts=(window._contacts||[]).filter(x=>x.name!==c.name);
+    render();
+    // Небольшое уведомление
+    const msg=document.createElement('div');
+    msg.style.cssText='position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#1a1828;border:1px solid rgba(0,255,160,.2);color:#00ffa0;padding:10px 20px;border-radius:6px;font-size:12px;font-family:var(--mono);z-index:9999;letter-spacing:.5px';
+    msg.textContent='✓ Удалено из: '+data.deleted_from.join(', ');
+    document.body.appendChild(msg);
+    setTimeout(()=>msg.remove(),3000);
+  }catch(e){
+    hapticNotify('error');
+    alert('Ошибка удаления: '+e.message);
+  }
+}
 
 async function svC(){
   const c=window._c;

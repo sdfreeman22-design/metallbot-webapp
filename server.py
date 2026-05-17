@@ -379,6 +379,54 @@ def api_contact_update(contact_id: str, body: ContactUpdate):
     return {"ok": True, "updated": updated_sheets}
 
 
+@app.delete("/api/contact/{contact_id:path}")
+def api_contact_delete(contact_id: str):
+    """Удаляет компанию из всех листов Google Sheets (Кооперация, Поставщики, Парсинг)."""
+    ss = _get_spreadsheet()
+    deleted_from: list[str] = []
+
+    for sheet_name in ("Кооперация", "Поставщики", "Парсинг"):
+        try:
+            ws = ss.worksheet(sheet_name)
+            all_vals = ws.get_all_values()
+            if not all_vals:
+                continue
+            headers = all_vals[0]
+
+            # Определяем колонку с именем компании
+            name_col_idx = None
+            for i, h in enumerate(headers):
+                if h in ("Название", "Компания", "Поставщик"):
+                    name_col_idx = i
+                    break
+            if name_col_idx is None:
+                continue
+
+            # Ищем строку (снизу вверх — безопаснее при удалении)
+            rows_to_delete = []
+            for r_i, row in enumerate(all_vals[1:], start=2):
+                cell = row[name_col_idx].strip() if len(row) > name_col_idx else ""
+                if cell.lower() == contact_id.lower():
+                    rows_to_delete.append(r_i)
+
+            # Удаляем строки снизу вверх (индексы не сдвигаются)
+            for r_i in sorted(rows_to_delete, reverse=True):
+                ws.delete_rows(r_i)
+                logger.info("[delete] %s: удалена строка %d ('%s')", sheet_name, r_i, contact_id)
+
+            if rows_to_delete:
+                deleted_from.append(sheet_name)
+                _cache.pop(sheet_name, None)
+
+        except Exception as e:
+            logger.warning("[delete] %s: %s", sheet_name, e)
+
+    if not deleted_from:
+        raise HTTPException(404, f"Компания не найдена: {contact_id}")
+
+    return {"ok": True, "deleted_from": deleted_from, "name": contact_id}
+
+
 @app.get("/api/stats")
 def api_stats():
     coops     = [c for c in _load_contacts() if c["kind"] == "coop"]
