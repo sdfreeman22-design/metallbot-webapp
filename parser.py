@@ -254,12 +254,28 @@ def _extract_contacts_direct(soup: BeautifulSoup, raw_html: str = "") -> dict:
         if len(digits) == 11:
             result["phone"] = f'+{digits[0]} ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}'
 
-    # ── 6. Email regex ────────────────────────────────────────────────────────
+    # ── 6. Email: видимый текст + raw HTML ──────────────────────────────────
     if not result["email"]:
-        full_text = soup.get_text(" ", strip=True)
-        m = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}', full_text)
-        if m:
-            result["email"] = m.group(0).strip()
+        email_pat = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}'
+        # Плохие домены — фильтруем системные адреса
+        skip_domains = ('sentry.io', 'example.com', 'test.com', 'yourdomain',
+                        'email.com', 'domain.com', 'wixpress.com', 'googleapis')
+        def _good_email(e: str) -> bool:
+            return '@' in e and not any(d in e.lower() for d in skip_domains)
+
+        sources = [soup.get_text(' ', strip=True)]
+        if raw_html:
+            import re as _re3
+            sources.append(_re3.sub(r'<[^>]+>', ' ', raw_html))
+
+        for source in sources:
+            if result["email"]:
+                break
+            for m in re.finditer(email_pat, source):
+                candidate = m.group(0).strip().lower()
+                if _good_email(candidate):
+                    result["email"] = candidate
+                    break
 
     # ── 7. Адрес: footer/address теги ─────────────────────────────────────────
     if not result["address"]:
