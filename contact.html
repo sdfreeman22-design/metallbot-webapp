@@ -410,13 +410,25 @@ async function dlC(){
   }
 }
 
+// Очищает телефон от "умных" кавычек, длинных тире, неразрывных пробелов
+function cleanPhone(p){
+  if(!p) return '';
+  return p
+    .replace(/[­​‌‍﻿]/g,'') // мягкие дефисы, невидимые символы
+    .replace(/[    ]/g,' ')       // неразрывные/узкие пробелы → обычный
+    .replace(/[«»„""''‹›]/g,'')                       // все виды кавычек
+    .replace(/[–—−]/g,'-')                            // длинные тире → дефис
+    .replace(/\s+/g,' ')                              // множественные пробелы → один
+    .trim();
+}
+
 async function svC(){
   const c=window._c;
   if(!c) return;
   const btn=$('svBtn');
   const v=id=>$(id).value.trim();
   const body={};
-  if(v('ep')) body.phone=v('ep');
+  if(v('ep')) body.phone=cleanPhone(v('ep'));
   if(v('ee')) body.email=v('ee');
   if(v('ec')) body.city=v('ec');
   if(v('ew')) body.website=v('ew');

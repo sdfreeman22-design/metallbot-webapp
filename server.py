@@ -106,6 +106,31 @@ def _s(v: Any) -> str:
         return ""
     return s
 
+def _clean_phone(p: str) -> str:
+    """Нормализует телефон: убирает умные кавычки, длинные тире, неразрывные пробелы."""
+    import unicodedata
+    if not p:
+        return p
+    # Нормализуем unicode
+    p = unicodedata.normalize("NFKC", p)
+    # Убираем невидимые/мягкие символы
+    invisible = "­​‌‍﻿⁠"
+    for ch in invisible:
+        p = p.replace(ch, "")
+    # Неразрывные и узкие пробелы → обычный пробел
+    for ch in "           ":
+        p = p.replace(ch, " ")
+    # Кавычки — убираем
+    for ch in '«»„“”‘’‹›':
+        p = p.replace(ch, "")
+    # Длинные тире → обычный дефис
+    for ch in "–—−―":
+        p = p.replace(ch, "-")
+    # Схлопываем пробелы
+    import re as _re
+    p = _re.sub(r" +", " ", p).strip()
+    return p
+
 def _split(val: str) -> list[str]:
     """Разбивает строку вида 'a | b | c' в список."""
     if not val:
@@ -318,6 +343,10 @@ def api_contact_update(contact_id: str, body: ContactUpdate):
     update_data = {k: v for k, v in body.dict().items() if v is not None}
     if not update_data:
         raise HTTPException(400, "Нет данных для обновления")
+
+    # Санитизация телефона
+    if "phone" in update_data:
+        update_data["phone"] = _clean_phone(update_data["phone"])
 
     updated_sheets: list[str] = []
     ss = _get_spreadsheet()
