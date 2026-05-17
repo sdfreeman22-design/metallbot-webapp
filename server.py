@@ -36,6 +36,8 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import Optional
 
 app = FastAPI(title="METALLBOT Mini App")
 app.add_middleware(
@@ -98,7 +100,11 @@ def _sheet_rows(sheet_name: str) -> list[dict]:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _s(v: Any) -> str:
-    return str(v).strip() if v else ""
+    s = str(v).strip() if v else ""
+    # Фильтруем ошибки Google Sheets (#ERROR!, #REF!, #N/A и т.д.)
+    if s and s.startswith('#') and ('!' in s or s in ('#N/A', '#REF', '#DIV/0')):
+        return ""
+    return s
 
 def _split(val: str) -> list[str]:
     """Разбивает строку вида 'a | b | c' в список."""
@@ -241,6 +247,13 @@ def api_contact(contact_id: str):
     target["parsed_at"]      = _s(p.get("Парсинг_дата", ""))
     if not target.get("website"):
         target["website"]    = _s(p.get("Сайт", ""))
+    # Подтягиваем телефон/email/город из Парсинга если в основном листе пусто
+    if not target.get("phone"):
+        target["phone"]      = _s(p.get("Телефон_парс", ""))
+    if not target.get("email"):
+        target["email"]      = _s(p.get("Email_парс", ""))
+    if not target.get("city"):
+        target["city"]       = _s(p.get("Адрес_парс", ""))
 
     history   = _purchase_history(target["name"])
     total_sum = sum(
@@ -255,6 +268,97 @@ def api_contact(contact_id: str):
     }
     target["history"] = history
     return target
+
+class ContactUpdate(BaseModel):
+    phone:          Optional[str] = None
+    email:          Optional[str] = None
+    city:           Optional[str] = None
+    website:        Optional[str] = None
+    specialization: Optional[str] = None
+    status:         Optional[str] = None
+    rating:         Optional[str] = None
+    notes:          Optional[str] = None
+
+# Маппинг поля → возможные названия колонок в листах
+_FIELD_COLS: dict[str, list[str]] = {
+    "phone":          ["Телефон"],
+    "email":          ["Email"],
+    "city":           ["Город"],
+    "website":        ["Сайт"],
+    "specialization": ["Специализация", "Вид металла/услуги"],
+    "status":         ["Статус"],
+    "rating":         ["Рейтинг"],
+    "notes":          ["Заметки", "Примечание"],
+}
+
+@app.put("/api/contact/{contact_id:path}")
+def api_contact_update(contact_id: str, body: ContactUpdate):
+    """Обновляет поля компании в Google Sheets."""
+    import gspread as _gs
+
+    update_data = {k: v for k, v in body.dict().items() if v is not None}
+    if not update_data:
+        raise HTTPException(400, "Нет данных для обновления")
+
+    updated_sheets: list[str] = []
+    ss = _get_spreadsheet()
+
+    for sheet_name in ("Кооперация", "Поставщики"):
+        try:
+            ws = ss.worksheet(sheet_name)
+            all_vals = ws.get_all_values()
+            if not all_vals:
+                continue
+            headers = all_vals[0]
+            col_map = {h: i + 1 for i, h in enumerate(headers)}
+
+            # Ищем строку по имени компании
+            name_cols = [i for i, h in enumerate(headers)
+                         if h in ("Название", "Компания", "Поставщик")]
+            row_idx = None
+            for r_i, row in enumerate(all_vals[1:], start=2):
+                for nc in name_cols:
+                    cell = row[nc].strip() if len(row) > nc else ""
+                    if cell.lower() == contact_id.lower():
+                        row_idx = r_i
+                        break
+                if row_idx:
+                    break
+
+            if row_idx is None:
+                continue
+
+            # Если нужной колонки нет — создаём
+            cells: list[_gs.Cell] = []
+            for field, value in update_data.items():
+                col_names = _FIELD_COLS.get(field, [field])
+                target_col = None
+                for cn in col_names:
+                    if cn in col_map:
+                        target_col = col_map[cn]
+                        break
+                if target_col is None:
+                    # Создаём колонку
+                    new_idx = len(headers) + 1
+                    ws.update_cell(1, new_idx, col_names[0])
+                    col_map[col_names[0]] = new_idx
+                    headers.append(col_names[0])
+                    target_col = new_idx
+                cells.append(_gs.Cell(row_idx, target_col, value))
+
+            if cells:
+                ws.update_cells(cells, value_input_option="USER_ENTERED")
+                updated_sheets.append(sheet_name)
+                _cache.pop(sheet_name, None)   # сброс кэша этого листа
+
+        except Exception as e:
+            logger.warning("[update] %s: %s", sheet_name, e)
+
+    if not updated_sheets:
+        raise HTTPException(404, f"Компания не найдена: {contact_id}")
+
+    return {"ok": True, "updated": updated_sheets}
+
 
 @app.get("/api/stats")
 def api_stats():

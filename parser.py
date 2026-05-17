@@ -84,6 +84,7 @@ class ParseResult:
     employees: str = ""
     area_sqm: str = ""
     extra_facts: list[str] = field(default_factory=list)
+    _extracted_company_name: str = ""  # имя компании извлечённое с сайта
 
     images: list[ParsedImage] = field(default_factory=list)
     raw_text: str = ""
@@ -274,6 +275,10 @@ class SiteParser:
                 result.employees      = ai_data.get("employees", "")
                 result.area_sqm       = ai_data.get("area_sqm", "")
                 result.extra_facts    = ai_data.get("extra_facts", [])
+                # Название компании с сайта
+                extracted = ai_data.get("company_name", "").strip()
+                if extracted and len(extracted) > 3:
+                    result._extracted_company_name = extracted
             except anthropic.APIConnectionError:
                 logger.warning("[parser] Claude API недоступен — пропускаем AI-анализ")
             except anthropic.RateLimitError:
@@ -354,13 +359,14 @@ class SiteParser:
         client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
         prompt = f"""Ты помощник для анализа сайтов промышленных компаний.
-Проанализируй текст сайта компании «{company}» ({url}) и извлеки информацию в JSON.
+Проанализируй текст сайта ({url}) и извлеки информацию в JSON.
 
 ТЕКСТ САЙТА:
 {text[:MAX_TEXT_CHARS]}
 
 Верни ТОЛЬКО валидный JSON без markdown-обёртки, в точно таком формате:
 {{
+  "company_name": "Полное официальное название компании (ООО/АО/ИП + название)",
   "description": "краткое описание компании 2-4 предложения",
   "services": ["услуга 1", "услуга 2"],
   "equipment": ["станок/оборудование 1", "станок 2"],
@@ -378,13 +384,16 @@ class SiteParser:
   "extra_facts": ["интересный факт 1", "факт 2"]
 }}
 
-Если какое-то поле отсутствует на сайте — оставь пустую строку или пустой массив.
+Если какое-то поле отсутствует — оставь пустую строку или пустой массив.
 Отвечай только JSON, без пояснений."""
 
-        msg = await client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}],
+        msg = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=60,
         )
 
         raw = msg.content[0].text.strip()

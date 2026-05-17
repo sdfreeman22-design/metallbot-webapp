@@ -172,6 +172,38 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-s
 /* ── Empty ── */
 .empty{text-align:center;padding:60px 20px;color:var(--ink3)}
 .empty-ico{font-size:48px;margin-bottom:12px}
+
+/* ── Edit button ── */
+.btn-edit{
+  position:absolute;top:18px;right:16px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  color:var(--ink2);font-size:13px;padding:6px 12px;cursor:pointer;
+  display:flex;align-items:center;gap:5px;transition:background .15s;
+}
+.btn-edit:active{background:var(--accent);color:#111}
+
+/* ── Edit modal ── */
+#edit-modal{
+  display:none;position:fixed;inset:0;z-index:300;
+  background:#000a;align-items:flex-end;justify-content:center;
+}
+#edit-modal.open{display:flex}
+.edit-sheet{
+  width:100%;max-height:88vh;overflow-y:auto;
+  background:var(--bg2);border-radius:20px 20px 0 0;
+  padding:20px 16px calc(20px + env(safe-area-inset-bottom));
+}
+.edit-sheet h2{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--accent)}
+.edit-field{margin-bottom:14px}
+.edit-field label{display:block;font-size:12px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.edit-field input,.edit-field select{
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:10px 13px;color:var(--ink);font-size:15px;outline:none;
+}
+.edit-field input:focus,.edit-field select:focus{border-color:var(--accent)}
+.edit-actions{display:flex;gap:10px;margin-top:6px}
+.btn-save{flex:1;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#111;font-size:15px;font-weight:700;cursor:pointer}
+.btn-cancel-edit{flex:0 0 auto;padding:13px 18px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);color:var(--ink2);font-size:15px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -199,6 +231,42 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-s
   <div id="lightbox">
     <div id="lightbox-close" onclick="closeLightbox()">✕</div>
     <img id="lightbox-img" src="" alt="">
+  </div>
+
+  <!-- ═══ EDIT MODAL ═══ -->
+  <div id="edit-modal">
+    <div class="edit-sheet">
+      <h2>✏️ Редактировать карточку</h2>
+      <div class="edit-field"><label>Телефон</label><input id="ef-phone" type="tel" placeholder="+7 (XXX) XXX-XX-XX"></div>
+      <div class="edit-field"><label>Email</label><input id="ef-email" type="email" placeholder="info@company.ru"></div>
+      <div class="edit-field"><label>Город / Адрес</label><input id="ef-city" type="text" placeholder="Москва"></div>
+      <div class="edit-field"><label>Сайт</label><input id="ef-website" type="url" placeholder="https://company.ru"></div>
+      <div class="edit-field"><label>Специализация</label><input id="ef-spec" type="text" placeholder="Токарные работы, фрезеровка..."></div>
+      <div class="edit-field"><label>Статус</label>
+        <select id="ef-status">
+          <option value="">— не указан —</option>
+          <option value="Активный">Активный</option>
+          <option value="Проверяется">Проверяется</option>
+          <option value="Неактивный">Неактивный</option>
+          <option value="Заблокирован">Заблокирован</option>
+        </select>
+      </div>
+      <div class="edit-field"><label>Рейтинг (1–5)</label>
+        <select id="ef-rating">
+          <option value="">— не указан —</option>
+          <option value="5">★★★★★ (5)</option>
+          <option value="4">★★★★☆ (4)</option>
+          <option value="3">★★★☆☆ (3)</option>
+          <option value="2">★★☆☆☆ (2)</option>
+          <option value="1">★☆☆☆☆ (1)</option>
+        </select>
+      </div>
+      <div class="edit-field"><label>Заметки</label><input id="ef-notes" type="text" placeholder="Любой комментарий..."></div>
+      <div class="edit-actions">
+        <button class="btn-cancel-edit" onclick="closeEditModal()">Отмена</button>
+        <button class="btn-save" onclick="saveContact()">💾 Сохранить</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -376,10 +444,13 @@ function renderDetail(c) {
   // ── Бейдж парсинга ──
   const parsedBadge = c.parsed_at ? `<div class="parsed-badge">🤖 Данные обновлены ${esc(c.parsed_at)}</div>` : '';
 
+  // Сохраняем данные для редактирования
+  window._editContact = c;
+
   document.getElementById('detail').innerHTML = `
     <div style="padding-top:env(safe-area-inset-top)">
       <!-- Hero -->
-      <div class="det-hero">
+      <div class="det-hero" style="position:relative">
         <div class="det-avatar">${icon}</div>
         <div style="flex:1;min-width:0">
           <div class="det-name">${esc(c.name)}</div>
@@ -387,6 +458,7 @@ function renderDetail(c) {
           <div class="det-city">${esc(c.city || '')}</div>
           ${c.website ? `<a href="${esc(c.website)}" style="font-size:12px;color:var(--accent);text-decoration:none" onclick="window.open('${esc(c.website)}');return false">🌐 Сайт</a>` : ''}
         </div>
+        <button class="btn-edit" onclick="openEditModal()">✏️ Изменить</button>
       </div>
 
       <!-- Stats -->
@@ -479,6 +551,70 @@ function closeLightbox() {
 }
 document.getElementById('lightbox').addEventListener('click', function(e) {
   if (e.target === this) closeLightbox();
+});
+
+// ── Edit modal ─────────────────────────────────────────────────────────────
+function openEditModal() {
+  const c = window._editContact;
+  if (!c) return;
+  document.getElementById('ef-phone').value   = c.phone   || '';
+  document.getElementById('ef-email').value   = c.email   || '';
+  document.getElementById('ef-city').value    = c.city    || '';
+  document.getElementById('ef-website').value = c.website || '';
+  document.getElementById('ef-spec').value    = c.specialization || '';
+  document.getElementById('ef-status').value  = c.status  || '';
+  document.getElementById('ef-rating').value  = c.rating  || '';
+  document.getElementById('ef-notes').value   = c.notes   || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+async function saveContact() {
+  const c = window._editContact;
+  if (!c) return;
+
+  const body = {};
+  const val = id => document.getElementById(id).value.trim();
+  if (val('ef-phone'))   body.phone          = val('ef-phone');
+  if (val('ef-email'))   body.email          = val('ef-email');
+  if (val('ef-city'))    body.city           = val('ef-city');
+  if (val('ef-website')) body.website        = val('ef-website');
+  if (val('ef-spec'))    body.specialization = val('ef-spec');
+  if (val('ef-status'))  body.status         = val('ef-status');
+  if (val('ef-rating'))  body.rating         = val('ef-rating');
+  if (val('ef-notes'))   body.notes          = val('ef-notes');
+
+  const saveBtn = document.querySelector('.btn-save');
+  saveBtn.textContent = '⏳ Сохраняю...';
+  saveBtn.disabled = true;
+
+  try {
+    const r = await fetch('/api/contact/' + encodeURIComponent(c.name), {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || 'HTTP ' + r.status);
+    }
+    closeEditModal();
+    // Перезагружаем карточку
+    await openDetail(encodeURIComponent(c.name));
+  } catch(e) {
+    alert('Ошибка сохранения: ' + e.message);
+  } finally {
+    saveBtn.textContent = '💾 Сохранить';
+    saveBtn.disabled = false;
+  }
+}
+
+// Закрытие по тапу вне шторки
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
 });
 
 // ── Boot ───────────────────────────────────────────────────────────────────
