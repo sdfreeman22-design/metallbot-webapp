@@ -3,622 +3,385 @@
 <head>
 <meta charset="utf-8">
 <title>METALLBOT</title>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 :root{
-  --bg:#111;--bg2:#1a1a1a;--bg3:#222;
-  --ink:#f0f0f0;--ink2:#aaa;--ink3:#666;
-  --accent:#e8c96d;--good:#5ec27a;--warn:#d4a72c;--bad:#d96565;
-  --border:#2a2a2a;--r:14px;
+  --bg:#08060c;--bg2:#0c0a12;--bg3:#12101a;
+  --surface:#14121e;--surface2:#1a1828;
+  --ink:#f0e8f2;--ink2:#8878a0;--ink3:#5a4e70;--ink4:#2e2840;
+  --red:#ff1464;--red-dim:rgba(255,20,100,.06);--red-glow:rgba(255,20,100,.12);
+  --green:#00ffa0;--green-dim:rgba(0,255,160,.06);
+  --amber:#ffb040;
+  --border:rgba(255,255,255,.03);--border2:rgba(255,255,255,.05);
+  --r:6px;--sans:'Wix Madefor Display',system-ui,sans-serif;--mono:'Share Tech Mono',monospace;
 }
-html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,system-ui,sans-serif;font-size:15px;overflow:hidden}
-#app{height:100%;display:flex;flex-direction:column;overflow:hidden}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;overflow:hidden;-webkit-font-smoothing:antialiased}
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative}
+#app::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.02) 2px,rgba(0,0,0,.02) 4px);opacity:.3}
+::-webkit-scrollbar{width:2px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--ink4);border-radius:4px}
 
-/* ── Header ── */
-.hdr{padding:12px 16px 8px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
-.hdr h1{font-size:17px;font-weight:700;color:var(--accent);letter-spacing:.5px}
-.hdr small{font-size:12px;color:var(--ink3)}
+.hdr{padding:16px 20px 12px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;position:relative}
+.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-glow),transparent)}
+.hdr h1{font-family:var(--mono);font-size:13px;color:var(--red);letter-spacing:3px;text-transform:uppercase;text-shadow:0 0 20px var(--red-dim)}
+.hc{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:1px;background:var(--bg3);padding:3px 10px;border-radius:4px;border:1px solid var(--border2)}
 
-/* ── Search ── */
-.search-wrap{padding:10px 16px 0;flex-shrink:0}
-.search-wrap input{
-  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;
-  padding:9px 14px;color:var(--ink);font-size:15px;outline:none;
-}
-.search-wrap input::placeholder{color:var(--ink3)}
+.sw{padding:14px 20px 0;flex-shrink:0}
+.si{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px 11px 40px;color:var(--ink);font-size:14px;font-family:var(--sans);font-weight:400;outline:none;transition:border-color .3s,box-shadow .3s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%235a4e70' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:14px center}
+.si::placeholder{color:var(--ink3);font-weight:400;letter-spacing:.3px}
+.si:focus{border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim),0 0 24px rgba(255,20,100,.04)}
 
-/* ── Filters ── */
-.filters{display:flex;gap:8px;padding:10px 16px;overflow-x:auto;flex-shrink:0;scrollbar-width:none}
-.filters::-webkit-scrollbar{display:none}
-.chip{
-  flex-shrink:0;padding:5px 14px;border-radius:20px;border:1px solid var(--border);
-  background:var(--bg3);color:var(--ink2);font-size:13px;cursor:pointer;white-space:nowrap;
-  transition:all .15s;
-}
-.chip.active{background:var(--accent);color:#111;border-color:var(--accent);font-weight:600}
+.fl{display:flex;gap:6px;padding:12px 20px 2px;overflow-x:auto;flex-shrink:0;scrollbar-width:none}.fl::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:6px 16px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--ink3);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;letter-spacing:1.2px;text-transform:uppercase}
+.chip:active{transform:scale(.95)}.chip.on{background:transparent;color:var(--red);border-color:var(--red);box-shadow:0 0 12px var(--red-dim),inset 0 0 12px var(--red-dim)}
 
-/* ── List ── */
-#list{flex:1;overflow-y:auto;padding:0 16px 16px;-webkit-overflow-scrolling:touch}
-.card{
-  display:flex;align-items:center;gap:12px;padding:12px 0;
-  border-bottom:1px solid var(--border);cursor:pointer;
-}
-.card:active{opacity:.7}
-.avatar{
-  width:46px;height:46px;border-radius:50%;background:var(--bg3);
-  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
-  border:1px solid var(--border);
-}
-.card-body{flex:1;min-width:0}
-.card-name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-sub{font-size:12px;color:var(--ink2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-right{text-align:right;flex-shrink:0}
-.card-sum{font-size:13px;font-weight:600;color:var(--accent)}
-.card-rating{font-size:12px;color:var(--ink2);margin-top:2px}
-.tag{
-  display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-top:4px;
-  background:var(--bg3);border:1px solid var(--border);color:var(--ink2);
-}
-.tag.t-coop{border-color:#5ec27a55;color:var(--good)}
-.tag.t-supp{border-color:#e8c96d55;color:var(--accent)}
+#list{flex:1;overflow-y:auto;padding:8px 20px 24px;-webkit-overflow-scrolling:touch}
 
-/* ── Detail overlay ── */
-#detail{
-  position:fixed;inset:0;background:var(--bg);z-index:100;
-  transform:translateX(100%);transition:transform .25s ease;overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-}
-#detail.open{transform:translateX(0)}
+/* pull-to-refresh */
+#ptr{display:flex;align-items:center;justify-content:center;height:0;overflow:hidden;transition:height .2s;font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:1px}
+#ptr.active{height:40px}
+#ptr.spin{color:var(--red)}
 
-.det-hero{padding:24px 16px 16px;display:flex;gap:14px;align-items:flex-start}
-.det-avatar{
-  width:64px;height:64px;border-radius:50%;background:var(--bg3);flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:28px;
-  border:2px solid var(--accent);
-}
-.det-name{font-size:19px;font-weight:700;line-height:1.2}
-.det-kind{font-size:13px;color:var(--ink2);margin-top:4px}
-.det-city{font-size:13px;color:var(--ink3);margin-top:2px}
+.card{display:flex;align-items:center;gap:12px;padding:11px 12px;margin-bottom:6px;border-radius:var(--r);background:var(--surface);border:1px solid var(--border);cursor:pointer;opacity:0;transform:translateY(14px);animation:cR .45s cubic-bezier(.16,1,.3,1) forwards;position:relative;overflow:hidden}
+.card:active{opacity:.5!important}
+@keyframes cR{to{opacity:1;transform:translateY(0)}}
+.card-bar{position:absolute;left:0;top:0;bottom:0;width:2px}
+.card-bar.s{background:linear-gradient(180deg,var(--red),rgba(255,20,100,.1))}
+.card-bar.c{background:linear-gradient(180deg,var(--green),rgba(0,255,160,.1))}
+.cb{flex:1;min-width:0;padding-left:4px}.cn{font-weight:600;font-size:13px;line-height:1.3}
+.cs{font-size:9px;color:var(--ink2);margin-top:2px;letter-spacing:.2px}
+.ct{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap}
+.tg{font-size:7px;padding:2px 7px;border-radius:3px;border:1px solid var(--border);color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.tg.ts{border-color:var(--red-dim);color:var(--red)}.tg.tc{border-color:var(--green-dim);color:var(--green)}
+.cr{text-align:right;flex-shrink:0}.cr-s{font-size:9px;color:var(--amber);letter-spacing:1.5px}
+.cr-k{font-family:var(--mono);font-size:7px;color:var(--ink4);margin-top:3px;letter-spacing:1px;text-transform:uppercase}
 
-/* ── Stats row ── */
-.stats-row{display:flex;gap:8px;padding:0 16px 16px;overflow-x:auto;scrollbar-width:none}
-.stats-row::-webkit-scrollbar{display:none}
-.stat-box{
-  flex:1;min-width:80px;background:var(--bg2);border-radius:10px;padding:10px 12px;
-  border:1px solid var(--border);text-align:center;
-}
-.stat-val{font-size:16px;font-weight:700;color:var(--accent)}
-.stat-lbl{font-size:10px;color:var(--ink3);margin-top:2px}
+/* skeleton */
+.skc{display:flex;align-items:center;gap:12px;padding:11px 12px;margin-bottom:6px;border-radius:var(--r);background:var(--surface);border:1px solid var(--border)}
+.sk{background:var(--surface2);border-radius:3px;position:relative;overflow:hidden}
+.sk::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,20,100,.015),transparent);animation:sh 2.5s ease infinite}
+@keyframes sh{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.sk-l{height:10px;margin-bottom:7px;border-radius:3px}.sk-l:last-child{margin:0}.w7{width:60%}.w4{width:35%}
 
-/* ── Action buttons ── */
-.actions{display:flex;gap:10px;padding:0 16px 16px}
-.btn{
-  flex:1;padding:12px;border-radius:12px;border:none;font-size:14px;font-weight:600;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
-  transition:opacity .15s;
-}
-.btn:active{opacity:.75}
-.btn-call{background:var(--good);color:#fff}
-.btn-tg{background:#2AABEE;color:#fff}
-.btn-wa{background:#25D366;color:#fff}
+/* detail */
+#det{position:fixed;inset:0;background:var(--bg);z-index:100;transform:translateX(100%);transition:transform .3s cubic-bezier(.32,.72,.32,1);overflow-y:auto;-webkit-overflow-scrolling:touch;will-change:transform}
+#det.open{transform:translateX(0)}#det.swiping{transition:none}
 
-/* ── Info section ── */
-.section-title{padding:4px 16px 8px;font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px}
-.info-card{margin:0 16px 12px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);overflow:hidden}
-.info-row{display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)}
-.info-row:last-child{border:none}
-.info-label{width:100px;font-size:13px;color:var(--ink3);flex-shrink:0}
-.info-value{font-size:13px;color:var(--ink);word-break:break-all}
+.dh{padding:24px 20px 20px;position:relative;border-bottom:1px solid var(--border)}
+.dh::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-glow),transparent)}
+.dn{font-size:20px;font-weight:800;line-height:1.2;letter-spacing:.2px;margin-top:36px}
+.dk{font-family:var(--mono);font-size:9px;color:var(--red);margin-top:6px;text-transform:uppercase;letter-spacing:2px}
+.dc{font-size:11px;color:var(--ink3);margin-top:3px}
+.dl{font-family:var(--mono);font-size:9px;color:var(--ink2);text-decoration:none;margin-top:6px;display:inline-block;letter-spacing:.5px;opacity:.7;border-bottom:1px solid var(--ink4);padding-bottom:1px}
 
-/* ── History ── */
-.hist-item{
-  margin:0 16px 8px;background:var(--bg2);border-radius:10px;
-  border:1px solid var(--border);padding:10px 14px;
-}
-.hist-date{font-size:12px;color:var(--ink3)}
-.hist-desc{font-size:13px;margin:3px 0}
-.hist-sum{font-size:14px;font-weight:700;color:var(--accent)}
+.ds{display:flex;gap:6px;padding:16px 20px;overflow-x:auto;scrollbar-width:none}.ds::-webkit-scrollbar{display:none}
+.dst{flex:1;min-width:68px;background:var(--surface);border-radius:var(--r);padding:14px 8px;border:1px solid var(--border);text-align:center;position:relative;overflow:hidden}
+.dst::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-dim),transparent)}
+.dv{font-family:var(--mono);font-size:14px;color:var(--red)}.dll{font-size:7px;color:var(--ink3);margin-top:5px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
 
-/* ── Gallery ── */
-.gallery{display:flex;gap:6px;padding:0 16px 16px;overflow-x:auto;scrollbar-width:none}
-.gallery::-webkit-scrollbar{display:none}
-.gallery img{
-  height:130px;width:auto;min-width:90px;max-width:200px;
-  border-radius:10px;object-fit:cover;flex-shrink:0;cursor:pointer;
-  border:1px solid var(--border);background:var(--bg3);
-}
+.dac{display:flex;gap:8px;padding:0 20px 16px}
+.dbtn{flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--green);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--green-dim);color:var(--green);font-family:var(--sans);letter-spacing:.5px}
+.dbtn:active{transform:scale(.97);opacity:.8}
 
-/* ── Lightbox ── */
-#lightbox{
-  display:none;position:fixed;inset:0;background:#000d;z-index:200;
-  align-items:center;justify-content:center;
-}
-#lightbox.open{display:flex}
-#lightbox img{max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain}
-#lightbox-close{
-  position:absolute;top:16px;right:16px;font-size:28px;color:#fff;cursor:pointer;
-  width:44px;height:44px;display:flex;align-items:center;justify-content:center;
-}
+.dsec{padding:8px 20px 8px;font-family:var(--mono);font-size:8px;color:var(--ink4);text-transform:uppercase;letter-spacing:2px}
+.dcd{margin:0 20px 14px;background:var(--surface);border-radius:var(--r);border:1px solid var(--border);overflow:hidden}
+.dr{display:flex;align-items:flex-start;padding:10px 14px;border-bottom:1px solid var(--border)}.dr:last-child{border:none}
+.drl{width:80px;font-size:10px;color:var(--ink3);flex-shrink:0}.drv{font-size:12px;color:var(--ink);word-break:break-all;line-height:1.5}
 
-/* ── Tags list ── */
-.tags-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
-.ptag{
-  padding:4px 10px;border-radius:20px;font-size:12px;
-  background:var(--bg3);border:1px solid var(--border);color:var(--ink2);
-}
-.ptag.t-coop{border-color:#5ec27a44;color:var(--good)}
-.ptag.t-supp{border-color:#e8c96d44;color:var(--accent)}
+.dhi{margin:0 20px 8px;background:var(--surface);border-radius:var(--r);border:1px solid var(--border);padding:12px 14px;position:relative;overflow:hidden}
+.dhi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--red),rgba(255,20,100,.1))}
+.dhi-d{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:.5px}.dhi-n{font-size:12px;margin:4px 0;line-height:1.4;color:var(--ink2)}
+.dhi-q{font-size:10px;color:var(--ink3)}.dhi-s{font-family:var(--mono);font-size:14px;color:var(--red);margin-top:2px;text-shadow:0 0 8px var(--red-dim)}
 
-/* ── Description block ── */
-.description{
-  margin:0 16px 12px;padding:12px 14px;background:var(--bg2);
-  border-radius:var(--r);border:1px solid var(--border);
-  font-size:13px;line-height:1.6;color:var(--ink2);
-}
+.dtg{display:flex;flex-wrap:wrap;gap:5px;padding:0 20px 14px}
+.pt{font-size:9px;padding:3px 10px;border-radius:3px;background:var(--surface);border:1px solid var(--border);color:var(--ink3);letter-spacing:.5px;font-weight:600}
+.pt.ps{border-color:var(--red-dim);color:var(--red)}.pt.pc{border-color:var(--green-dim);color:var(--green)}
 
-/* ── Parsed badge ── */
-.parsed-badge{
-  display:inline-flex;align-items:center;gap:4px;margin:0 16px 12px;
-  font-size:11px;color:var(--ink3);
-}
+.ddesc{margin:0 20px 14px;padding:14px 16px;background:var(--surface);border-radius:var(--r);border:1px solid var(--border);font-size:12px;line-height:1.8;color:var(--ink2);border-left:2px solid var(--red-dim)}
+.dbdg{display:inline-flex;align-items:center;gap:4px;margin:4px 20px 14px;font-family:var(--mono);font-size:8px;color:var(--ink4);letter-spacing:1px}
+.empty{text-align:center;padding:60px 24px;color:var(--ink3)}.empty-i{font-size:32px;margin-bottom:16px;opacity:.4}.empty p{font-size:12px;letter-spacing:.3px}
 
-/* ── Spinner ── */
-.spinner-wrap{display:flex;justify-content:center;padding:40px}
-.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+.bb{position:absolute;top:24px;left:20px;z-index:10;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:12px;padding:6px 14px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
+.bb:active{color:var(--red);border-color:var(--red)}
+.be{position:absolute;top:24px;right:20px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:11px;padding:6px 12px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
+.be:active{color:var(--red);border-color:var(--red)}
 
-/* ── Empty ── */
-.empty{text-align:center;padding:60px 20px;color:var(--ink3)}
-.empty-ico{font-size:48px;margin-bottom:12px}
-
-/* ── Edit button ── */
-.btn-edit{
-  position:absolute;top:18px;right:16px;
-  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
-  color:var(--ink2);font-size:13px;padding:6px 12px;cursor:pointer;
-  display:flex;align-items:center;gap:5px;transition:background .15s;
-}
-.btn-edit:active{background:var(--accent);color:#111}
-
-/* ── Edit modal ── */
-#edit-modal{
-  display:none;position:fixed;inset:0;z-index:300;
-  background:#000a;align-items:flex-end;justify-content:center;
-}
-#edit-modal.open{display:flex}
-.edit-sheet{
-  width:100%;max-height:88vh;overflow-y:auto;
-  background:var(--bg2);border-radius:20px 20px 0 0;
-  padding:20px 16px calc(20px + env(safe-area-inset-bottom));
-}
-.edit-sheet h2{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--accent)}
-.edit-field{margin-bottom:14px}
-.edit-field label{display:block;font-size:12px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
-.edit-field input,.edit-field select{
-  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;
-  padding:10px 13px;color:var(--ink);font-size:15px;outline:none;
-}
-.edit-field input:focus,.edit-field select:focus{border-color:var(--accent)}
-.edit-actions{display:flex;gap:10px;margin-top:6px}
-.btn-save{flex:1;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#111;font-size:15px;font-weight:700;cursor:pointer}
-.btn-cancel-edit{flex:0 0 auto;padding:13px 18px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);color:var(--ink2);font-size:15px;cursor:pointer}
+#em{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,6,12,.7);align-items:flex-end;justify-content:center;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+#em.open{display:flex}
+.es{width:100%;max-height:88vh;overflow-y:auto;background:var(--bg2);border-radius:16px 16px 0 0;padding:28px 20px calc(28px + env(safe-area-inset-bottom));border-top:1px solid rgba(255,20,100,.08)}
+.es::before{content:'';display:block;width:32px;height:3px;background:var(--ink4);border-radius:2px;margin:0 auto 20px}
+.es h2{font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:2px;margin-bottom:22px}
+.ef{margin-bottom:16px}.ef label{display:block;font-family:var(--mono);font-size:8px;color:var(--ink3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1.5px}
+.ef input,.ef select{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--ink);font-size:14px;outline:none;font-family:var(--sans);transition:border-color .2s,box-shadow .2s}
+.ef input:focus,.ef select:focus{border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
+.ef select option{background:var(--bg2);color:var(--ink)}
+.ebs{display:flex;gap:10px;margin-top:10px}
+.esv{flex:1;padding:14px;border-radius:var(--r);border:1px solid var(--red);background:var(--red-dim);color:var(--red);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);letter-spacing:.5px}
+.esv:active{transform:scale(.98);box-shadow:0 0 20px var(--red-dim)}
+.esv:disabled{opacity:.5;cursor:not-allowed}
+.ecn{flex:0 0 auto;padding:14px 20px;border-radius:var(--r);border:1px solid var(--border2);background:var(--surface);color:var(--ink2);font-size:13px;cursor:pointer;font-family:var(--sans)}
+.dsk{padding:60px 20px 20px}.dsk-h{margin-bottom:28px}.dsk-s{display:flex;gap:6px;margin-bottom:20px}.dsk-st{flex:1;height:64px;border-radius:var(--r)}.dsk-b{height:60px;border-radius:var(--r);margin-bottom:10px}
 </style>
 </head>
 <body>
 <div id="app">
-
-  <!-- ═══ LIST VIEW ═══ -->
-  <div class="hdr">
-    <h1>⚙ METALLBOT</h1>
-    <small id="hdr-sub">Загрузка...</small>
-  </div>
-  <div class="search-wrap">
-    <input id="search" type="search" placeholder="🔍 Поиск контрагента..." autocomplete="off">
-  </div>
-  <div class="filters">
-    <span class="chip active" data-kind="">Все</span>
-    <span class="chip" data-kind="coop">Кооператоры</span>
-    <span class="chip" data-kind="supplier">Поставщики</span>
-  </div>
+  <div class="hdr"><h1>METALLBOT</h1><span class="hc" id="hc">—</span></div>
+  <div id="ptr">↓ обновить</div>
+  <div class="sw"><input class="si" id="si" type="search" placeholder="Поиск контрагента..." autocomplete="off"></div>
+  <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span></div>
   <div id="list"></div>
-
-  <!-- ═══ DETAIL VIEW ═══ -->
-  <div id="detail"></div>
-
-  <!-- ═══ LIGHTBOX ═══ -->
-  <div id="lightbox">
-    <div id="lightbox-close" onclick="closeLightbox()">✕</div>
-    <img id="lightbox-img" src="" alt="">
-  </div>
-
-  <!-- ═══ EDIT MODAL ═══ -->
-  <div id="edit-modal">
-    <div class="edit-sheet">
-      <h2>✏️ Редактировать карточку</h2>
-      <div class="edit-field"><label>Телефон</label><input id="ef-phone" type="tel" placeholder="+7 (XXX) XXX-XX-XX"></div>
-      <div class="edit-field"><label>Email</label><input id="ef-email" type="email" placeholder="info@company.ru"></div>
-      <div class="edit-field"><label>Город / Адрес</label><input id="ef-city" type="text" placeholder="Москва"></div>
-      <div class="edit-field"><label>Сайт</label><input id="ef-website" type="url" placeholder="https://company.ru"></div>
-      <div class="edit-field"><label>Специализация</label><input id="ef-spec" type="text" placeholder="Токарные работы, фрезеровка..."></div>
-      <div class="edit-field"><label>Статус</label>
-        <select id="ef-status">
-          <option value="">— не указан —</option>
-          <option value="Активный">Активный</option>
-          <option value="Проверяется">Проверяется</option>
-          <option value="Неактивный">Неактивный</option>
-          <option value="Заблокирован">Заблокирован</option>
-        </select>
-      </div>
-      <div class="edit-field"><label>Рейтинг (1–5)</label>
-        <select id="ef-rating">
-          <option value="">— не указан —</option>
-          <option value="5">★★★★★ (5)</option>
-          <option value="4">★★★★☆ (4)</option>
-          <option value="3">★★★☆☆ (3)</option>
-          <option value="2">★★☆☆☆ (2)</option>
-          <option value="1">★☆☆☆☆ (1)</option>
-        </select>
-      </div>
-      <div class="edit-field"><label>Заметки</label><input id="ef-notes" type="text" placeholder="Любой комментарий..."></div>
-      <div class="edit-actions">
-        <button class="btn-cancel-edit" onclick="closeEditModal()">Отмена</button>
-        <button class="btn-save" onclick="saveContact()">💾 Сохранить</button>
-      </div>
-    </div>
-  </div>
-
+  <div id="det"></div>
+  <div id="em"><div class="es">
+    <h2>Редактировать</h2>
+    <div class="ef"><label>Телефон</label><input id="ep" type="tel" placeholder="+7 (XXX) XXX-XX-XX"></div>
+    <div class="ef"><label>Email</label><input id="ee" type="email" placeholder="info@company.ru"></div>
+    <div class="ef"><label>Город</label><input id="ec" type="text" placeholder="Москва"></div>
+    <div class="ef"><label>Сайт</label><input id="ew" type="url" placeholder="https://company.ru"></div>
+    <div class="ef"><label>Специализация</label><input id="es2" type="text" placeholder="Токарные работы..."></div>
+    <div class="ef"><label>Статус</label><select id="est"><option value="">—</option><option value="Активный">Активный</option><option value="Проверяется">Проверяется</option><option value="Неактивный">Неактивный</option><option value="Заблокирован">Заблокирован</option></select></div>
+    <div class="ef"><label>Рейтинг</label><select id="er"><option value="">—</option><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select></div>
+    <div class="ef"><label>Заметки</label><input id="en" type="text" placeholder="Комментарий..."></div>
+    <div class="ebs"><button class="ecn" onclick="clEm()">Отмена</button><button class="esv" id="svBtn" onclick="svC()">Сохранить</button></div>
+  </div></div>
 </div>
-
 <script>
+// ── Telegram WebApp ────────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+if(tg){ tg.ready(); tg.expand(); }
+function haptic(type='light'){ try{ tg?.HapticFeedback?.impactOccurred(type) }catch(e){} }
+function hapticNotify(type='success'){ try{ tg?.HapticFeedback?.notificationOccurred(type) }catch(e){} }
 
-let allContacts = [];
-let activeKind = '';
-let searchQ = '';
+// ── State ──────────────────────────────────────────────────────────────────
+let A=[], aK='', sQ='';
+const $=id=>document.getElementById(id);
+const E=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';
+const fS=n=>{n=+n;return n>=1e6?(n/1e6).toFixed(1)+'М':n>=1e3?(n/1e3).toFixed(0)+'К':n+'₽'};
+const st=r=>{r=Math.round(parseFloat(r)||0);return r?'★'.repeat(r)+'☆'.repeat(5-r):''};
+const LB={coop:'Кооператор',supplier:'Поставщик'};
+const TC={coop:'tc',supplier:'ts'};
+const BC={coop:'c',supplier:'s'};
+
+// ── Skeleton loaders ───────────────────────────────────────────────────────
+function skL(n=6){return Array.from({length:n},()=>'<div class="skc"><div style="flex:1"><div class="sk sk-l w7"></div><div class="sk sk-l w4"></div></div></div>').join('')}
+function skD(){return'<div class="dsk"><div class="dsk-h"><div class="sk sk-l w7" style="height:18px;margin-bottom:10px"></div><div class="sk sk-l w4"></div></div><div class="dsk-s"><div class="sk dsk-st"></div><div class="sk dsk-st"></div><div class="sk dsk-st"></div></div><div class="sk dsk-b"></div><div class="sk dsk-b" style="height:100px"></div></div>'}
 
 // ── Load contacts ──────────────────────────────────────────────────────────
-async function loadContacts() {
-  const listEl = document.getElementById('list');
-  listEl.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div></div>';
-  try {
+async function load(){
+  $('list').innerHTML = skL();
+  try{
     const r = await fetch('/api/contacts');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    // API returns {items: [...], total: N}
-    allContacts = Array.isArray(data) ? data : (data.items || []);
-    document.getElementById('hdr-sub').textContent = allContacts.length + ' контрагентов';
-    render();
-  } catch (e) {
-    listEl.innerHTML = `<div class="empty"><div class="empty-ico">⚠️</div>Ошибка: ${e.message || e}<br><small style="color:#555;font-size:11px;word-break:break-all">${window.location.origin}/api/contacts</small></div>`;
-    console.error(e);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    A = Array.isArray(d) ? d : (d.items || []);
+  }catch(e){
+    $('list').innerHTML = '<div class="empty"><div class="empty-i">⚠</div><p>Ошибка загрузки<br><small style="font-size:9px;opacity:.5">'+e.message+'</small></p></div>';
+    return;
   }
+  $('hc').textContent = A.length;
+  render();
 }
 
 // ── Render list ────────────────────────────────────────────────────────────
-function render() {
-  const q = searchQ.toLowerCase();
-  const filtered = allContacts.filter(c => {
-    const matchKind = !activeKind || (c.kind || '') === activeKind;
-    const matchQ = !q ||
-      (c.name || '').toLowerCase().includes(q) ||
-      (c.city || '').toLowerCase().includes(q) ||
-      (c.tags || []).some(t => t.toLowerCase().includes(q));
-    return matchKind && matchQ;
+function render(){
+  const q=sQ.toLowerCase();
+  const f=A.filter(c=>{
+    if(aK && c.kind!==aK) return false;
+    return !q || [c.name,c.city,c.specialization,c.service,c.materials].some(s=>(s||'').toLowerCase().includes(q));
   });
-
-  const listEl = document.getElementById('list');
-  if (!filtered.length) {
-    listEl.innerHTML = '<div class="empty"><div class="empty-ico">🔍</div>Ничего не найдено</div>';
+  const el=$('list');
+  if(!f.length){
+    el.innerHTML='<div class="empty"><div class="empty-i">⌀</div><p>Ничего не найдено</p></div>';
     return;
   }
-
-  const kindIcon = { 'coop': '🤝', 'supplier': '🏭' };
-  const kindLabel = { 'coop': 'Кооператор', 'supplier': 'Поставщик' };
-  const tagClass  = { 'coop': 't-coop', 'supplier': 't-supp' };
-
-  listEl.innerHTML = filtered.map(c => {
-    const icon = kindIcon[c.kind] || '👤';
-    // Build sub-tags from specialization/service fields
-    const tagSrcs = [c.specialization, c.service].filter(Boolean);
-    const tagsHtml = tagSrcs.slice(0,2).map(t =>
-      `<span class="tag ${tagClass[c.kind]||''}">${esc(t.slice(0,20))}</span>`).join(' ');
-    const rating = parseFloat(c.rating) || 0;
-    const stars = rating ? '★'.repeat(Math.round(rating)) + '☆'.repeat(5 - Math.round(rating)) : '';
-    const kindName = kindLabel[c.kind] || c.kind || '';
-    return `
-      <div class="card" onclick="openDetail('${esc(encodeURIComponent(c.name))}')">
-        <div class="avatar">${icon}</div>
-        <div class="card-body">
-          <div class="card-name">${esc(c.name)}</div>
-          <div class="card-sub">${esc(c.city || kindName)}</div>
-          ${tagsHtml}
-        </div>
-        <div class="card-right">
-          ${stars ? `<div class="card-rating" style="color:var(--warn);font-size:11px">${stars}</div>` : ''}
-          ${kindName ? `<div style="font-size:11px;color:var(--ink3);margin-top:3px">${esc(kindName)}</div>` : ''}
-        </div>
-      </div>`;
+  el.innerHTML=f.map((c,i)=>{
+    const tgs=[c.specialization,c.service].filter(Boolean).slice(0,2).map(t=>'<span class="tg '+(TC[c.kind]||'')+'">'+E(t.slice(0,18))+'</span>').join('');
+    const s=st(c.rating);
+    return '<div class="card" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
+      +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
+      +'<div class="cb"><div class="cn">'+E(c.name)+'</div><div class="cs">'+E(c.city||'')+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
+      +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+'</div>'
+      +'</div>';
   }).join('');
 }
 
 // ── Open detail ────────────────────────────────────────────────────────────
-async function openDetail(encId) {
-  const det = document.getElementById('detail');
-  det.innerHTML = '<div class="spinner-wrap" style="padding-top:40vh"><div class="spinner"></div></div>';
-  det.classList.add('open');
-  if (tg) { tg.BackButton.show(); tg.BackButton.onClick(closeDetail); }
+async function opD(encId){
+  haptic('light');
+  const d=$('det');
+  d.innerHTML=skD();
+  d.classList.add('open');
+  if(tg){ tg.BackButton.show(); tg.BackButton.onClick(clD); }
 
-  try {
-    const r = await fetch('/api/contact/' + encId);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const c = await r.json();
-    renderDetail(c);
-  } catch (e) {
-    det.innerHTML = '<div class="empty" style="padding-top:30vh"><div class="empty-ico">⚠️</div>Ошибка загрузки</div>';
+  let c;
+  try{
+    const r=await fetch('/api/contact/'+encId);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    c=await r.json();
+  }catch(e){
+    d.innerHTML='<div class="empty" style="padding-top:30vh"><div class="empty-i">⚠</div><p>Ошибка загрузки<br><small style="font-size:9px;opacity:.5">'+e.message+'</small></p></div>';
+    return;
   }
+  rD(c);
 }
 
 // ── Render detail ──────────────────────────────────────────────────────────
-function renderDetail(c) {
-  const kindIcon  = { 'coop': '🤝', 'supplier': '🏭' };
-  const kindLabel = { 'coop': 'Кооператор', 'supplier': 'Поставщик' };
-  const icon  = kindIcon[c.kind] || '👤';
-  const kname = kindLabel[c.kind] || c.kind || '';
+function rD(c){
+  const kn=LB[c.kind]||'';
+  const sr=st(c.rating)||'—';
+  const s=c.stats||{};
 
-  const rating = parseFloat(c.rating) || 0;
-  const stars  = rating ? '★'.repeat(Math.round(rating)) + '☆'.repeat(5 - Math.round(rating)) : '—';
+  const info=[
+    ['Тип',kn],['Город',c.city],['Телефон',c.phone],['Email',c.email],
+    ['Контакт',c.contact],['Спец.',c.specialization],['Услуги',c.service],
+    ['Материалы',c.materials],['Оборуд.',c.equipment],['Статус',c.status],
+    ['Цены',c.price_level],['Заметки',c.notes],['Добавлено',c.added]
+  ].filter(x=>x[1]).map(x=>'<div class="dr"><span class="drl">'+E(x[0])+'</span><span class="drv">'+E(x[1])+'</span></div>').join('');
 
-  const phone = c.phone || '';
-  // Stats come under c.stats
-  const stats = c.stats || {};
+  const hist=(c.history||[]).length
+    ? (c.history||[]).map(h=>
+        '<div class="dhi">'
+        +'<div class="dhi-d">'+E(h.date)+(h.inv?' · №'+E(h.inv):'')+'</div>'
+        +'<div class="dhi-n">'+E(h.name)+(h.mark?' '+E(h.mark):'')+(h.size?' '+E(h.size):'')+'</div>'
+        +(h.qty?'<div class="dhi-q">'+E(h.qty)+'</div>':'')
+        +(h.sum?'<div class="dhi-s">'+E(h.sum)+' ₽</div>':'')
+        +'</div>').join('')
+    : '<div class="empty" style="padding:20px"><div class="empty-i" style="font-size:20px">⌀</div><p>Пусто</p></div>';
 
-  const actionBtns = [
-    phone ? `<button class="btn btn-call" onclick="window.open('tel:${esc(phone)}')">📞 Позвонить</button>` : '',
-  ].filter(Boolean).join('');
+  const desc=c.description?'<div class="dsec">О компании</div><div class="ddesc">'+E(c.description)+'</div>':'';
+  const tk=c.kind==='coop'?'pc':'ps';
+  const at=[].concat(c.services_list||[],c.equipment_list||[],c.materials_list||[]);
+  const tagsH=at.length?'<div class="dsec">Услуги · Оборудование</div><div class="dtg">'+at.slice(0,20).map(t=>'<span class="pt '+tk+'">'+E(t)+'</span>').join('')+'</div>':'';
+  const certs=(c.certificates||[]).length?'<div class="dsec">Сертификаты</div><div class="dtg">'+c.certificates.map(t=>'<span class="pt pc">'+E(t)+'</span>').join('')+'</div>':'';
+  const facts=(c.extra_facts||[]).length?'<div class="dsec">Факты</div><div class="dcd">'+c.extra_facts.map(f=>'<div class="dr"><span class="drv">'+E(f)+'</span></div>').join('')+'</div>':'';
+  const badge=c.parsed_at?'<div class="dbdg">⟐ SYNC '+E(c.parsed_at)+'</div>':'';
 
-  const infoFields = [
-    ['Тип',           kname],
-    ['Город',         c.city],
-    ['Телефон',       phone],
-    ['Email',         c.email],
-    ['Контакт',       c.contact],
-    ['Специализация', c.specialization],
-    ['Услуги',        c.service],
-    ['Материалы',     c.materials],
-    ['Оборудование',  c.equipment],
-    ['Статус',        c.status],
-    ['Уровень цен',   c.price_level],
-    ['Примечание',    c.notes],
-    ['Добавлено',     c.added],
-  ].filter(([,v]) => v).map(([l, v]) =>
-    `<div class="info-row"><span class="info-label">${esc(l)}</span><span class="info-value">${esc(v)}</span></div>`
-  ).join('');
+  var host=''; try{ host=c.website?new URL(c.website).hostname:'' }catch(e){}
 
-  // API returns c.history (not c.purchases)
-  const history = c.history || [];
-  const histHtml = history.length
-    ? history.map(h => `
-        <div class="hist-item">
-          <div class="hist-date">${esc(h.date || '')}${h.invoice ? ' · №' + esc(h.invoice) : ''}</div>
-          <div class="hist-desc">${esc(h.name || '')}${h.mark ? ' ' + esc(h.mark) : ''}${h.size ? ' ' + esc(h.size) : ''}</div>
-          ${h.qty ? `<div style="font-size:12px;color:var(--ink2)">${esc(h.qty)} ${esc(h.unit||'')}</div>` : ''}
-          ${h.sum ? `<div class="hist-sum">${esc(h.sum)} ₽</div>` : ''}
-        </div>`).join('')
-    : '<div class="empty" style="padding:20px"><div class="empty-ico" style="font-size:32px">📋</div>История пуста</div>';
+  // Сохраняем для редактирования
+  window._c=c;
 
-  // ── Галерея фото ──
-  const photos = c.photo_urls || [];
-  // Все фото грузим через прокси — обходим CORS и hotlink-блокировки
-  const BASE = window.location.origin;
-  function proxyUrl(u) { return BASE + '/api/img?url=' + encodeURIComponent(u); }
-  const galleryHtml = photos.length ? `
-    <div class="section-title">Фото производства</div>
-    <div class="gallery">
-      ${photos.map(u => `<img src="${proxyUrl(u)}" loading="lazy" onclick="openLightbox('${proxyUrl(u)}')" onerror="this.style.display='none'">`).join('')}
-    </div>` : '';
-
-  // ── Описание ──
-  const descHtml = c.description ? `
-    <div class="section-title">О компании</div>
-    <div class="description">${esc(c.description)}</div>` : '';
-
-  // ── Теги услуг/оборудования ──
-  const tagKind = c.kind === 'coop' ? 't-coop' : 't-supp';
-  const allTags = [...(c.services_list||[]), ...(c.equipment_list||[]), ...(c.materials_list||[])];
-  const tagsHtml = allTags.length ? `
-    <div class="section-title">Услуги и оборудование</div>
-    <div class="tags-wrap">${allTags.slice(0,20).map(t => `<span class="ptag ${tagKind}">${esc(t)}</span>`).join('')}</div>` : '';
-
-  // ── Сертификаты ──
-  const certsHtml = (c.certificates||[]).length ? `
-    <div class="tags-wrap" style="padding-top:0">${c.certificates.map(t => `<span class="ptag" style="border-color:#5ec27a44;color:var(--good)">📜 ${esc(t)}</span>`).join('')}</div>` : '';
-
-  // ── Факты ──
-  const factsHtml = (c.extra_facts||[]).length ? `
-    <div class="section-title">Факты</div>
-    <div class="info-card">${c.extra_facts.map(f => `<div class="info-row"><span class="info-value">💡 ${esc(f)}</span></div>`).join('')}</div>` : '';
-
-  // ── Бейдж парсинга ──
-  const parsedBadge = c.parsed_at ? `<div class="parsed-badge">🤖 Данные обновлены ${esc(c.parsed_at)}</div>` : '';
-
-  // Сохраняем данные для редактирования
-  window._editContact = c;
-
-  document.getElementById('detail').innerHTML = `
-    <div style="padding-top:env(safe-area-inset-top)">
-      <!-- Hero -->
-      <div class="det-hero" style="position:relative">
-        <div class="det-avatar">${icon}</div>
-        <div style="flex:1;min-width:0">
-          <div class="det-name">${esc(c.name)}</div>
-          <div class="det-kind">${esc(kname)}</div>
-          <div class="det-city">${esc(c.city || '')}</div>
-          ${c.website ? `<a href="${esc(c.website)}" style="font-size:12px;color:var(--accent);text-decoration:none" onclick="window.open('${esc(c.website)}');return false">🌐 Сайт</a>` : ''}
-        </div>
-        <button class="btn-edit" onclick="openEditModal()">✏️ Изменить</button>
-      </div>
-
-      <!-- Stats -->
-      <div class="stats-row">
-        <div class="stat-box">
-          <div class="stat-val" style="color:var(--warn);font-size:13px">${stars}</div>
-          <div class="stat-lbl">Рейтинг</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-val">${stats.purchases_count ?? '—'}</div>
-          <div class="stat-lbl">Закупок</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-val">${stats.total_sum ? fmtSum(stats.total_sum) : '—'}</div>
-          <div class="stat-lbl">Оборот</div>
-        </div>
-        ${c.founded_year ? `<div class="stat-box"><div class="stat-val">${esc(c.founded_year)}</div><div class="stat-lbl">Основана</div></div>` : ''}
-        ${c.employees ? `<div class="stat-box"><div class="stat-val" style="font-size:13px">${esc(c.employees)}</div><div class="stat-lbl">Сотрудников</div></div>` : ''}
-      </div>
-
-      <!-- Actions -->
-      ${actionBtns ? `<div class="actions">${actionBtns}</div>` : ''}
-
-      <!-- Галерея -->
-      ${galleryHtml}
-
-      <!-- Описание -->
-      ${descHtml}
-
-      <!-- Теги -->
-      ${tagsHtml}
-
-      <!-- Сертификаты -->
-      ${certsHtml ? `<div class="section-title">Сертификаты</div>${certsHtml}` : ''}
-
-      <!-- Факты -->
-      ${factsHtml}
-
-      <!-- Info -->
-      ${infoFields ? `<div class="section-title">Контакты</div><div class="info-card">${infoFields}</div>` : ''}
-
-      <!-- Бейдж парсинга -->
-      ${parsedBadge}
-
-      <!-- History -->
-      <div class="section-title">История закупок</div>
-      ${histHtml}
-      <div style="height:32px"></div>
-    </div>`;
+  $('det').innerHTML=
+    '<div style="padding-top:env(safe-area-inset-top)"><div class="dh">'
+    +'<button class="bb" onclick="clD()">‹ Назад</button>'
+    +'<button class="be" onclick="opE()">✎ Изменить</button>'
+    +'<div class="dn">'+E(c.name)+'</div>'
+    +'<div class="dk">'+E(kn)+'</div>'
+    +'<div class="dc">'+E(c.city||'')+'</div>'
+    +(host?'<a class="dl" href="'+E(c.website||'')+'" onclick="window.open(this.href);return false">'+E(host)+'</a>':'')
+    +'</div>'
+    +'<div class="ds">'
+    +'<div class="dst"><div class="dv" style="color:var(--amber);font-size:11px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг</div></div>'
+    +'<div class="dst"><div class="dv">'+(s.purchases_count!=null?s.purchases_count:'—')+'</div><div class="dll">Закупок</div></div>'
+    +'<div class="dst"><div class="dv" style="font-size:12px">'+(s.total_sum?fS(s.total_sum):'—')+'</div><div class="dll">Оборот</div></div>'
+    +(c.founded_year?'<div class="dst"><div class="dv" style="font-size:12px">'+E(c.founded_year)+'</div><div class="dll">Основана</div></div>':'')
+    +(c.employees?'<div class="dst"><div class="dv" style="font-size:11px">'+E(c.employees)+'</div><div class="dll">Штат</div></div>':'')
+    +'</div>'
+    +(c.phone?'<div class="dac"><button class="dbtn" onclick="haptic(\'medium\');window.open(\'tel:'+E(c.phone.replace(/\s/g,''))+'\')">📞 Позвонить</button></div>':'')
+    +desc+tagsH+certs+facts
+    +(info?'<div class="dsec">Контакты</div><div class="dcd">'+info+'</div>':'')
+    +badge
+    +'<div class="dsec">История закупок</div>'+hist
+    +'<div style="height:32px"></div></div>';
 }
 
 // ── Close detail ───────────────────────────────────────────────────────────
-function closeDetail() {
-  document.getElementById('detail').classList.remove('open');
-  if (tg) tg.BackButton.hide();
+function clD(){
+  $('det').classList.remove('open');
+  if(tg) tg.BackButton.hide();
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function esc(s) {
-  return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
-}
-function fmtSum(n) {
-  n = Number(n);
-  if (n >= 1e6) return (n/1e6).toFixed(2) + ' млн ₽';
-  if (n >= 1e3) return (n/1e3).toFixed(1) + ' тыс ₽';
-  return n + ' ₽';
-}
+// ── Swipe to close ─────────────────────────────────────────────────────────
+(function(){
+  var d=$('det'),sx=0,sy=0,dx=0,sw=false;
+  d.addEventListener('touchstart',function(e){var t=e.touches[0];if(t.clientX>30)return;sx=t.clientX;sy=t.clientY;sw=false;dx=0},{passive:true});
+  d.addEventListener('touchmove',function(e){if(!sx)return;var t=e.touches[0],mx=t.clientX-sx,my=Math.abs(t.clientY-sy);if(!sw&&mx>10&&mx>my){sw=true;d.classList.add('swiping')}if(!sw)return;dx=Math.max(0,mx);d.style.transform='translateX('+dx+'px)'},{passive:true});
+  d.addEventListener('touchend',function(){if(!sw){sx=0;return}d.classList.remove('swiping');if(dx>100){d.style.transform='';clD()}else{d.style.transform='';d.classList.add('open')}sx=0;sw=false;dx=0},{passive:true});
+})();
 
-// ── Events ─────────────────────────────────────────────────────────────────
-document.querySelectorAll('.chip').forEach(ch => {
-  ch.addEventListener('click', () => {
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    ch.classList.add('active');
-    activeKind = ch.dataset.kind;
+// ── Pull to refresh ────────────────────────────────────────────────────────
+(function(){
+  const list=$('list'), ptr=$('ptr');
+  let sy=0, pulling=false, done=false;
+  list.addEventListener('touchstart',function(e){if(list.scrollTop===0){sy=e.touches[0].clientY;pulling=true;done=false}},{passive:true});
+  list.addEventListener('touchmove',function(e){if(!pulling)return;const dy=e.touches[0].clientY-sy;if(dy>40&&!done){ptr.textContent='↻ Обновить';ptr.classList.add('active','spin')}else if(dy>10){ptr.textContent='↓ обновить';ptr.classList.add('active');ptr.classList.remove('spin')}else{ptr.classList.remove('active','spin')}},{passive:true});
+  list.addEventListener('touchend',function(){if(!pulling)return;pulling=false;if(ptr.classList.contains('spin')&&!done){done=true;haptic('medium');load().then(()=>{ptr.classList.remove('active','spin');ptr.textContent='↓ обновить'})}else{ptr.classList.remove('active','spin')}},{passive:true});
+})();
+
+// ── Filters & search ───────────────────────────────────────────────────────
+document.querySelectorAll('.chip').forEach(function(ch){
+  ch.addEventListener('click',function(){
+    haptic('light');
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+    ch.classList.add('on');
+    aK=ch.dataset.k;
     render();
   });
 });
-document.getElementById('search').addEventListener('input', e => {
-  searchQ = e.target.value;
-  render();
-});
-
-// ── Lightbox ───────────────────────────────────────────────────────────────
-function openLightbox(url) {
-  document.getElementById('lightbox-img').src = url;
-  document.getElementById('lightbox').classList.add('open');
-}
-function closeLightbox() {
-  document.getElementById('lightbox').classList.remove('open');
-}
-document.getElementById('lightbox').addEventListener('click', function(e) {
-  if (e.target === this) closeLightbox();
-});
+$('si').addEventListener('input',function(e){sQ=e.target.value;render()});
 
 // ── Edit modal ─────────────────────────────────────────────────────────────
-function openEditModal() {
-  const c = window._editContact;
-  if (!c) return;
-  document.getElementById('ef-phone').value   = c.phone   || '';
-  document.getElementById('ef-email').value   = c.email   || '';
-  document.getElementById('ef-city').value    = c.city    || '';
-  document.getElementById('ef-website').value = c.website || '';
-  document.getElementById('ef-spec').value    = c.specialization || '';
-  document.getElementById('ef-status').value  = c.status  || '';
-  document.getElementById('ef-rating').value  = c.rating  || '';
-  document.getElementById('ef-notes').value   = c.notes   || '';
-  document.getElementById('edit-modal').classList.add('open');
+function opE(){
+  const c=window._c;
+  if(!c)return;
+  haptic('light');
+  $('ep').value=c.phone||'';
+  $('ee').value=c.email||'';
+  $('ec').value=c.city||'';
+  $('ew').value=c.website||'';
+  $('es2').value=c.specialization||'';
+  $('est').value=c.status||'';
+  $('er').value=c.rating||'';
+  $('en').value=c.notes||'';
+  $('em').classList.add('open');
 }
+function clEm(){ $('em').classList.remove('open'); }
 
-function closeEditModal() {
-  document.getElementById('edit-modal').classList.remove('open');
-}
+async function svC(){
+  const c=window._c;
+  if(!c) return;
+  const btn=$('svBtn');
+  const v=id=>$(id).value.trim();
+  const body={};
+  if(v('ep')) body.phone=v('ep');
+  if(v('ee')) body.email=v('ee');
+  if(v('ec')) body.city=v('ec');
+  if(v('ew')) body.website=v('ew');
+  if(v('es2')) body.specialization=v('es2');
+  if(v('est')) body.status=v('est');
+  if(v('er')) body.rating=v('er');
+  if(v('en')) body.notes=v('en');
 
-async function saveContact() {
-  const c = window._editContact;
-  if (!c) return;
-
-  const body = {};
-  const val = id => document.getElementById(id).value.trim();
-  if (val('ef-phone'))   body.phone          = val('ef-phone');
-  if (val('ef-email'))   body.email          = val('ef-email');
-  if (val('ef-city'))    body.city           = val('ef-city');
-  if (val('ef-website')) body.website        = val('ef-website');
-  if (val('ef-spec'))    body.specialization = val('ef-spec');
-  if (val('ef-status'))  body.status         = val('ef-status');
-  if (val('ef-rating'))  body.rating         = val('ef-rating');
-  if (val('ef-notes'))   body.notes          = val('ef-notes');
-
-  const saveBtn = document.querySelector('.btn-save');
-  saveBtn.textContent = '⏳ Сохраняю...';
-  saveBtn.disabled = true;
-
-  try {
-    const r = await fetch('/api/contact/' + encodeURIComponent(c.name), {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
+  btn.textContent='Сохраняю...';
+  btn.disabled=true;
+  try{
+    const r=await fetch('/api/contact/'+encodeURIComponent(c.name),{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      throw new Error(err.detail || 'HTTP ' + r.status);
-    }
-    closeEditModal();
+    if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'HTTP '+r.status)}
+    hapticNotify('success');
+    clEm();
     // Перезагружаем карточку
-    await openDetail(encodeURIComponent(c.name));
-  } catch(e) {
-    alert('Ошибка сохранения: ' + e.message);
-  } finally {
-    saveBtn.textContent = '💾 Сохранить';
-    saveBtn.disabled = false;
+    await opD(encodeURIComponent(c.name));
+  }catch(e){
+    hapticNotify('error');
+    alert('Ошибка сохранения: '+e.message);
+  }finally{
+    btn.textContent='Сохранить';
+    btn.disabled=false;
   }
 }
-
-// Закрытие по тапу вне шторки
-document.getElementById('edit-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeEditModal();
-});
+$('em').addEventListener('click',function(e){if(e.target===this)clEm()});
 
 // ── Boot ───────────────────────────────────────────────────────────────────
-loadContacts();
+load();
 </script>
 </body>
 </html>
