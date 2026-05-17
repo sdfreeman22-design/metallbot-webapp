@@ -489,6 +489,19 @@ class SiteParser:
             logger.warning("[parser] ANTHROPIC_API_KEY не задан — AI-анализ отключён")
 
 
+        # Если email не найден — пробуем страницу контактов
+        if not result.contacts.get("email") and not direct_contacts.get("email"):
+            await _progress("📇 Ищу страницу контактов...")
+            try:
+                extra = await SiteParser._fetch_contacts_page(result.url, soup)
+                if extra.get("email"):
+                    result.contacts["email"] = extra["email"]
+                    logger.info("[parser] Email со страницы контактов: %s", extra["email"])
+                if not result.contacts.get("phone") and extra.get("phone"):
+                    direct_contacts["phone"] = extra["phone"]
+            except Exception as _e:
+                logger.debug("[parser] contacts page skip: %s", _e)
+
         # Fallback: берём direct_contacts если Claude не нашёл или нашёл < 10 цифр
         import re as _re2
         claude_phone  = result.contacts.get("phone", "")
@@ -579,6 +592,83 @@ class SiteParser:
                     html = raw.decode("utf-8", errors="replace")
 
                 return html, str(resp.url)
+
+    # ── Поиск страницы контактов ──────────────────────────────────────────────
+    @staticmethod
+    async def _fetch_contacts_page(base_url: str, soup: BeautifulSoup) -> dict:
+        """
+        Если на главной не нашли email/phone — ищем страницу контактов и парсим её.
+        Возвращает {'phone': '...', 'email': '...'}.
+        """
+        CONTACT_KEYWORDS = [
+            "контакт", "contact", "kontakt", "kontakty",
+            "связ", "svyaz", "о нас", "about", "реквизит",
+        ]
+        CONTACT_PATHS = [
+            "/kontakty", "/contacts", "/contact", "/kontakt",
+            "/about", "/o-nas", "/o-kompanii", "/svyaz",
+            "/company/contacts", "/about/contacts",
+        ]
+
+        from urllib.parse import urlparse, urljoin
+
+        base = f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}"
+        candidate_urls = []
+
+        # 1. Ищем ссылки на странице с ключевыми словами
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            txt  = a.get_text(strip=True).lower()
+            href_low = href.lower()
+            if any(k in txt or k in href_low for k in CONTACT_KEYWORDS):
+                full = urljoin(base_url, href)
+                # Только ссылки на тот же домен
+                if urlparse(full).netloc == urlparse(base_url).netloc and full not in candidate_urls:
+                    candidate_urls.append(full)
+
+        # 2. Добавляем стандартные пути
+        for p in CONTACT_PATHS:
+            u = base + p
+            if u not in candidate_urls:
+                candidate_urls.append(u)
+
+        result = {"phone": "", "email": ""}
+        EMAIL_PAT = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}")
+        PHONE_PAT = re.compile(r"(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}")
+        SKIP_DOMAINS = ("sentry.io", "example.com", "test.com", "wixpress.com", "googleapis")
+
+        try:
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(
+                connector=connector, headers=HEADERS,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as session:
+                for url in candidate_urls[:5]:  # максимум 5 попыток
+                    if result["email"]:
+                        break
+                    try:
+                        async with session.get(url, allow_redirects=True) as resp:
+                            if resp.status != 200:
+                                continue
+                            html2 = await resp.text(errors="replace")
+                            # Ищем email
+                            for m in EMAIL_PAT.finditer(html2):
+                                e = m.group(0).lower()
+                                if not any(d in e for d in SKIP_DOMAINS):
+                                    result["email"] = e
+                                    logger.info("[parser] Email с контакт-страницы %s: %s", url, e)
+                                    break
+                            # Ищем телефон если ещё нет
+                            if not result["phone"]:
+                                pm = PHONE_PAT.search(html2)
+                                if pm:
+                                    result["phone"] = pm.group(0)
+                    except Exception:
+                        continue
+        except Exception as e:
+            logger.debug("[parser] contacts page error: %s", e)
+
+        return result
 
     # ── Claude AI ─────────────────────────────────────────────────────────────
     @staticmethod
