@@ -114,7 +114,7 @@ def _slugify(text: str, max_len: int = 60) -> str:
     return text[:max_len] or "company"
 
 
-def _extract_contacts_direct(soup: BeautifulSoup) -> dict:
+def _extract_contacts_direct(soup: BeautifulSoup, raw_html: str = "") -> dict:
     """
     Извлекает контакты напрямую из HTML — до удаления footer/header.
     Многослойный поиск: tel:/mailto:, data-*, JSON-LD, itemprop, regex.
@@ -209,26 +209,50 @@ def _extract_contacts_direct(soup: BeautifulSoup) -> dict:
             if result["phone"]:
                 break
 
-    # ── 5. Regex по полному тексту страницы ──────────────────────────────────
+    # ── 5. Regex по тексту страницы + raw HTML ───────────────────────────────
     if not result["phone"]:
-        full_text = soup.get_text(" ", strip=True)
+        # Ищем в нескольких источниках последовательно
+        search_sources = []
+        # Сначала — видимый текст страницы
+        search_sources.append(soup.get_text(" ", strip=True))
+        # Затем — raw HTML (ловим телефоны в JS, data-атрибутах, комментариях)
+        if raw_html:
+            # Убираем теги но оставляем содержимое атрибутов и скриптов
+            stripped = re.sub(r'<[^>]+>', ' ', raw_html)
+            search_sources.append(stripped)
+
         phone_patterns = [
-            # +7 или 8 с разными разделителями
-            r'(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}',
-            # Сплошные цифры
-            r'\+7\d{10}',
-            r'8\d{10}',
-            r'7\d{10}',
-            # Без кода страны но со скобками: (499) 123-45-67
+            # Стандартный российский с разделителями
+            r'(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-\.\u00a0]?\d{3}[\s\-\.\u00a0]?\d{2}[\s\-\.\u00a0]?\d{2}',
+            # Сплошные 11 цифр начиная с 7 или 8
+            r'(?:\+7|8)\d{10}',
+            # 10 цифр без кода страны
+            r'9\d{9}',
+            # Со скобками без кода: (499) 123-45-67
             r'\(\d{3,4}\)[\s\-]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}',
         ]
-        for pat in phone_patterns:
-            m = re.search(pat, full_text)
-            if m:
-                candidate = m.group(0).strip()
-                if _valid_phone(candidate):
-                    result["phone"] = candidate
+        for source in search_sources:
+            if result["phone"]:
+                break
+            for pat in phone_patterns:
+                matches = re.findall(pat, source)
+                for candidate in matches:
+                    candidate = candidate.strip()
+                    if _valid_phone(candidate):
+                        result["phone"] = candidate
+                        break
+                if result["phone"]:
                     break
+
+    # ── 5b. Нормализуем найденный телефон ─────────────────────────────────────
+    if result["phone"]:
+        digits = re.sub(r'\D', '', result["phone"])
+        if len(digits) == 11 and digits[0] in ('7', '8'):
+            digits = '7' + digits[1:]
+        elif len(digits) == 10:
+            digits = '7' + digits
+        if len(digits) == 11:
+            result["phone"] = f'+{digits[0]} ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}'
 
     # ── 6. Email regex ────────────────────────────────────────────────────────
     if not result["email"]:
@@ -400,7 +424,7 @@ class SiteParser:
 
         # Сначала извлекаем контакты напрямую (tel:/mailto: ссылки, regex)
         # — до удаления тегов, пока footer/header ещё на месте
-        direct_contacts = _extract_contacts_direct(soup)
+        direct_contacts = _extract_contacts_direct(soup, raw_html=html)
         logger.info("[parser] Прямые контакты: %s", direct_contacts)
 
         raw_text = _extract_text(soup)
@@ -448,13 +472,24 @@ class SiteParser:
         elif not ANTHROPIC_API_KEY:
             logger.warning("[parser] ANTHROPIC_API_KEY не задан — AI-анализ отключён")
 
-        # ── Дополняем контакты прямым парсингом если Claude не нашёл ─────────
-        if not result.contacts.get("phone") and direct_contacts.get("phone"):
-            result.contacts["phone"] = direct_contacts["phone"]
-            logger.info("[parser] Телефон из прямого парсинга: %s", direct_contacts["phone"])
+
+        # Fallback: берём direct_contacts если Claude не нашёл или нашёл < 10 цифр
+        import re as _re2
+        claude_phone  = result.contacts.get("phone", "")
+        claude_digits = len(_re2.sub(r"\D", "", claude_phone))
+        direct_phone  = direct_contacts.get("phone", "")
+        if direct_phone and claude_digits < 10:
+            result.contacts["phone"] = direct_phone
+            logger.info("[parser] Телефон из direct: %s", direct_phone)
+        elif claude_phone and claude_digits >= 10:
+            d = _re2.sub(r"\D", "", claude_phone)
+            if len(d) == 11 and d[0] in ("7","8"): d = "7" + d[1:]
+            elif len(d) == 10: d = "7" + d
+            if len(d) == 11:
+                result.contacts["phone"] = f"+{d[0]} ({d[1:4]}) {d[4:7]}-{d[7:9]}-{d[9:11]}"
         if not result.contacts.get("email") and direct_contacts.get("email"):
             result.contacts["email"] = direct_contacts["email"]
-            logger.info("[parser] Email из прямого парсинга: %s", direct_contacts["email"])
+            logger.info("[parser] Email из direct: %s", direct_contacts["email"])
         if not result.contacts.get("address") and direct_contacts.get("address"):
             result.contacts["address"] = direct_contacts["address"]
 
