@@ -424,17 +424,21 @@ def api_contact_delete(contact_id: str):
             if name_col_idx is None:
                 continue
 
-            # Ищем строку (снизу вверх — безопаснее при удалении)
-            rows_to_delete = []
+            # Ищем все строки с этим именем
+            rows_found = []
             for r_i, row in enumerate(all_vals[1:], start=2):
                 cell = row[name_col_idx].strip() if len(row) > name_col_idx else ""
                 if cell.lower() == contact_id.lower():
-                    rows_to_delete.append(r_i)
+                    rows_found.append(r_i)
 
-            # Удаляем строки снизу вверх (индексы не сдвигаются)
-            for r_i in sorted(rows_to_delete, reverse=True):
+            # Удаляем только ОДНУ строку (последнюю — дубль).
+            # Если запись единственная — удаляем её.
+            # Никогда не удаляем больше одной за один запрос.
+            rows_to_delete = [rows_found[-1]] if rows_found else []
+            for r_i in rows_to_delete:
                 ws.delete_rows(r_i)
-                logger.info("[delete] %s: удалена строка %d ('%s')", sheet_name, r_i, contact_id)
+                logger.info("[delete] %s: удалена строка %d ('%s') из %d найденных",
+                            sheet_name, r_i, contact_id, len(rows_found))
 
             if rows_to_delete:
                 deleted_from.append(sheet_name)
