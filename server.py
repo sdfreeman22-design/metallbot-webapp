@@ -328,6 +328,9 @@ class ContactUpdate(BaseModel):
     city:           Optional[str] = None
     website:        Optional[str] = None
     specialization: Optional[str] = None
+    services:       Optional[str] = None   # Виды_работ + Услуги_парс
+    equipment:      Optional[str] = None   # Оборудование + Оборудование_парс
+    materials:      Optional[str] = None   # Материалы + Материалы_парс
     status:         Optional[str] = None
     rating:         Optional[str] = None
     notes:          Optional[str] = None
@@ -339,10 +342,32 @@ _FIELD_COLS: dict[str, list[str]] = {
     "city":           ["Город"],
     "website":        ["Сайт"],
     "specialization": ["Специализация", "Вид металла/услуги"],
+    "services":       ["Виды_работ", "Услуги_парс"],
+    "equipment":      ["Оборудование", "Оборудование_парс"],
+    "materials":      ["Материалы", "Материалы_парс"],
     "status":         ["Статус"],
     "rating":         ["Рейтинг"],
     "notes":          ["Заметки", "Примечание"],
 }
+
+# ── Сигнал боту о грязном кэше ───────────────────────────────────────────────
+_dirty_sheets: set[str] = set()
+
+@app.get("/api/cache-status")
+def api_cache_status():
+    """Бот спрашивает: были ли изменения? Возвращает список грязных листов и сбрасывает флаг."""
+    global _dirty_sheets
+    dirty = list(_dirty_sheets)
+    _dirty_sheets = set()
+    return {"dirty": dirty}
+
+@app.post("/api/cache-bust")
+def api_cache_bust(sheets: list[str] = None):
+    """Явный сброс кэша (для тестов)."""
+    for s in (sheets or ["Кооперация"]):
+        _cache.pop(s, None)
+        _dirty_sheets.add(s)
+    return {"ok": True}
 
 @app.put("/api/contact/{contact_id:path}")
 def api_contact_update(contact_id: str, body: ContactUpdate):
@@ -407,6 +432,7 @@ def api_contact_update(contact_id: str, body: ContactUpdate):
                 ws.update_cells(cells, value_input_option="RAW")
                 updated_sheets.append(sheet_name)
                 _cache.pop(sheet_name, None)   # сброс кэша этого листа
+                _dirty_sheets.add(sheet_name)  # сигнал боту: кэш устарел
 
         except Exception as e:
             logger.warning("[update] %s: %s", sheet_name, e)

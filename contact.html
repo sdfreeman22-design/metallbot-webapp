@@ -134,7 +134,9 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .es::before{content:'';display:block;width:32px;height:3px;background:var(--ink4);border-radius:2px;margin:0 auto 20px}
 .es h2{font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:2px;margin-bottom:22px}
 .ef{margin-bottom:16px}.ef label{display:block;font-family:var(--mono);font-size:8px;color:var(--ink3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1.5px}
-.ef input,.ef select{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--ink);font-size:14px;outline:none;font-family:var(--sans);transition:border-color .2s,box-shadow .2s}
+.ef-hint{display:flex!important;align-items:center;gap:6px;flex-direction:row!important}.ef-hint span{font-size:7px;color:var(--green);opacity:.7;letter-spacing:.5px;text-transform:none;font-family:var(--sans)}
+.ef input,.ef select,.ef textarea{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--ink);font-size:14px;outline:none;font-family:var(--sans);transition:border-color .2s,box-shadow .2s}
+.ef textarea{resize:none;line-height:1.5;font-size:13px}.ef textarea:focus,.ef input:focus{border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
 .ef input:focus,.ef select:focus{border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
 .ef select option{background:var(--bg2);color:var(--ink)}
 .ebs{display:flex;gap:10px;margin-top:10px}
@@ -173,8 +175,11 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
     <div class="ef"><label>Email</label><input id="ee" type="email" placeholder="info@company.ru"></div>
     <div class="ef"><label>Город</label><input id="ec" type="text" placeholder="Москва"></div>
     <div class="ef"><label>Сайт</label><input id="ew" type="url" placeholder="https://company.ru"></div>
-    <div class="ef"><label>Специализация</label><input id="es2" type="text" placeholder="Токарные работы..."></div>
-    <div class="ef"><label>Статус</label><select id="est"><option value="">—</option><option value="Активный">Активный</option><option value="Проверяется">Проверяется</option><option value="Неактивный">Неактивный</option><option value="Заблокирован">Заблокирован</option></select></div>
+    <div class="ef"><label>Специализация</label><input id="es2" type="text" placeholder="Токарные, Фрезерные..."></div>
+    <div class="ef"><label class="ef-hint">Виды работ <span>🔍 используется в поиске</span></label><textarea id="esrv" rows="2" placeholder="Токарная обработка, ЭЭО, Шлифование..."></textarea></div>
+    <div class="ef"><label class="ef-hint">Оборудование <span>🔍 используется в поиске</span></label><textarea id="eeq" rows="2" placeholder="Токарные ЧПУ, Фрезерные, Долбёжный..."></textarea></div>
+    <div class="ef"><label class="ef-hint">Материалы <span>🔍 используется в поиске</span></label><textarea id="emat" rows="2" placeholder="Сталь, Нержавейка, Алюминий..."></textarea></div>
+    <div class="ef"><label>Статус</label><select id="est"><option value="">—</option><option value="vip_own">✦ Наше предприятие</option><option value="vip">★ VIP-партнёр</option><option value="Активный">Активный</option><option value="Проверяется">Проверяется</option><option value="Неактивный">Неактивный</option><option value="Заблокирован">Заблокирован</option></select></div>
     <div class="ef"><label>Рейтинг</label><select id="er"><option value="">—</option><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select></div>
     <div class="ef"><label>Заметки</label><input id="en" type="text" placeholder="Комментарий..."></div>
     <div class="ebs"><button class="ecn" onclick="clEm()">Отмена</button><button class="esv" id="svBtn" onclick="svC()">Сохранить</button></div>
@@ -391,6 +396,10 @@ function opE(){
   $('ec').value=c.city||'';
   $('ew').value=c.website||'';
   $('es2').value=c.specialization||'';
+  // Поля поиска — берём из services_list/equipment_list/materials_list или из service/equipment/materials
+  $('esrv').value=(c.services_list&&c.services_list.length?c.services_list.join(', '):c.service||'');
+  $('eeq').value=(c.equipment_list&&c.equipment_list.length?c.equipment_list.join(', '):c.equipment||'');
+  $('emat').value=(c.materials_list&&c.materials_list.length?c.materials_list.join(', '):c.materials||'');
   $('est').value=c.status||'';
   $('er').value=c.rating||'';
   $('en').value=c.notes||'';
@@ -449,6 +458,9 @@ async function svC(){
   if(v('ec')) body.city=v('ec');
   if(v('ew')) body.website=v('ew');
   if(v('es2')) body.specialization=v('es2');
+  if(v('esrv')) body.services=v('esrv');
+  if(v('eeq')) body.equipment=v('eeq');
+  if(v('emat')) body.materials=v('emat');
   if(v('est')) body.status=v('est');
   if(v('er')) body.rating=v('er');
   if(v('en')) body.notes=v('en');
