@@ -150,6 +150,12 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .gal{display:flex;gap:6px;padding:0 20px 16px;overflow-x:auto;scrollbar-width:none}.gal::-webkit-scrollbar{display:none}
 .gal img{height:110px;width:auto;min-width:80px;max-width:180px;border-radius:var(--r);object-fit:cover;flex-shrink:0;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:opacity .2s}
 .gal img:active{opacity:.6}
+.gal-api{padding:16px 20px;border-top:1px solid var(--border)}
+.gal-t{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.gal-imgs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+.gal-imgs::-webkit-scrollbar{display:none}
+.gal-img{width:120px;height:90px;object-fit:cover;border-radius:var(--r);border:1px solid var(--border2);flex-shrink:0;cursor:pointer}
+.gal-img:active{opacity:.7}
 
 /* lightbox */
 #lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;align-items:center;justify-content:center}
@@ -349,6 +355,24 @@ function rD(c){
     +badge
     +'<div class="dsec">История закупок</div>'+hist
     +'<div style="height:32px"></div></div>';
+
+  // Fetch locally stored images from /api/images/{slug}
+  const slug = c.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+  fetch('/api/images/' + encodeURIComponent(slug))
+    .then(r => r.json())
+    .then(data => {
+      if (data.images && data.images.length > 0) {
+        const gallery = document.createElement('div');
+        gallery.className = 'gal-api';
+        gallery.innerHTML = '<div class="gal-t">📸 Фото работ</div>'
+          + '<div class="gal-imgs">'
+          + data.images.map(src => '<img class="gal-img" src="' + src + '" loading="lazy" onclick="opLb(\'' + src + '\')">').join('')
+          + '</div>';
+        const dc = document.querySelector('#det .dc');
+        if (dc) dc.appendChild(gallery);
+      }
+    })
+    .catch(() => {});
 }
 
 // ── Close detail ───────────────────────────────────────────────────────────
