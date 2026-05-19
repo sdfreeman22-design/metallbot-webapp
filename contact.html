@@ -64,6 +64,16 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .cr{text-align:right;flex-shrink:0}.cr-s{font-size:9px;color:var(--amber);letter-spacing:1.5px}
 .cr-k{font-family:var(--mono);font-size:7px;color:var(--ink4);margin-top:3px;letter-spacing:1px;text-transform:uppercase}
 
+/* VIP cards */
+--gold:#ffd060;--gold-dim:rgba(255,208,96,.08);--gold-glow:rgba(255,208,96,.18);
+.card.vip-own{background:linear-gradient(135deg,#1a1608 0%,#16120a 60%,#1a1608 100%);border-color:rgba(255,208,96,.22);box-shadow:0 0 18px rgba(255,208,96,.06),inset 0 0 30px rgba(255,208,96,.03)}
+.card.vip-own .card-bar{background:linear-gradient(180deg,#ffd060,rgba(255,208,96,.1))!important;width:3px}
+.card.vip-own .cn{color:#ffd060}
+.card.vip-own .cs{color:rgba(255,208,96,.5)}
+.vip-badge{display:inline-block;font-family:var(--mono);font-size:7px;letter-spacing:1.5px;padding:2px 7px;border-radius:3px;margin-bottom:4px;text-transform:uppercase}
+.vip-badge.own{background:rgba(255,208,96,.1);border:1px solid rgba(255,208,96,.3);color:#ffd060}
+.vip-badge.vip{background:rgba(255,176,64,.08);border:1px solid rgba(255,176,64,.25);color:var(--amber)}
+
 /* skeleton */
 .skc{display:flex;align-items:center;gap:12px;padding:11px 12px;margin-bottom:6px;border-radius:var(--r);background:var(--surface);border:1px solid var(--border)}
 .sk{background:var(--surface2);border-radius:3px;position:relative;overflow:hidden}
@@ -230,9 +240,15 @@ function render(){
   el.innerHTML=f.map((c,i)=>{
     const tgs=[c.specialization,c.service].filter(Boolean).slice(0,2).map(t=>'<span class="tg '+(TC[c.kind]||'')+'">'+E(t.slice(0,18))+'</span>').join('');
     const s=st(c.rating);
-    return '<div class="card" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
+    const statusL=(c.status||'').toLowerCase().trim();
+    const isOwn=statusL==='vip_own';
+    const isVip=statusL==='vip';
+    const badge=isOwn?'<div class="vip-badge own">✦ НАШЕ ПРЕДПРИЯТИЕ</div>'
+                :isVip?'<div class="vip-badge vip">★ VIP-ПАРТНЁР</div>':'';
+    const cardCls='card'+(isOwn?' vip-own':isVip?' vip-partner':'');
+    return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
-      +'<div class="cb"><div class="cn">'+E(c.name)+'</div><div class="cs">'+E(c.city||'')+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
+      +'<div class="cb">'+badge+'<div class="cn">'+E(c.name)+'</div><div class="cs">'+E(c.city||'')+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
       +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+'</div>'
       +'</div>';
   }).join('');

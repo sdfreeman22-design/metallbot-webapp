@@ -239,6 +239,21 @@ def _purchase_history(supplier: str) -> list[dict]:
     return out[:30]
 
 # ── API routes ────────────────────────────────────────────────────────────────
+def _sort_key(c: dict) -> tuple:
+    """vip_own=0, vip=1, остальные=2; внутри группы — по рейтингу убыв."""
+    st = (c.get("status") or "").lower().strip()
+    if st == "vip_own":
+        tier = 0
+    elif st == "vip":
+        tier = 1
+    else:
+        tier = 2
+    try:
+        rat = -float(c.get("rating") or 0)
+    except Exception:
+        rat = 0
+    return (tier, rat)
+
 @app.get("/api/contacts")
 def api_contacts(q: str = "", kind: str = ""):
     items = _load_contacts()
@@ -252,6 +267,7 @@ def api_contacts(q: str = "", kind: str = ""):
                  or n in x["service"].lower()
                  or n in x["materials"].lower()
                  or n in x["equipment"].lower()]
+    items.sort(key=_sort_key)
     return {"items": items, "total": len(items)}
 
 @app.get("/api/contact/{contact_id:path}")
