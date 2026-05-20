@@ -217,6 +217,52 @@ const LB={coop:'Кооператор',supplier:'Поставщик',both:'Коо
 const TC={coop:'tc',supplier:'ts',both:'tb'};
 const BC={coop:'c',supplier:'s',both:'b'};
 
+// ── Очистка адреса → только город/нас.пункт ───────────────────────────────
+function cleanCity(raw){
+  if(!raw) return '';
+  let s=raw.trim();
+
+  // 1. Убираем почтовый индекс (6 цифр) и страну в начале
+  s=s.replace(/^\d{6}[\s,]+/,'');
+  s=s.replace(/^(?:Россия|РФ|Russia)[\s,]+/i,'');
+
+  // 2. Ищем явный маркер «г.» / «г » — берём название города
+  let m=s.match(/\bг\.?\s+([А-ЯЁа-яёA-Za-z][А-ЯЁа-яёA-Za-z\s\-]{1,35})/);
+  if(m){
+    const city=m[1].trim().split(/[,\.;]/)[0].trim();
+    if(city.length>=2) return city;
+  }
+
+  // 3. Ищем населённый пункт меньше города: р.п. / пгт / пос. / с. / д.
+  m=s.match(/(р\.п\.|рп\.|пгт\.?|пос\.|с\.|д\.)\s*([А-ЯЁа-яёA-Za-z][А-ЯЁа-яёA-Za-z\s\-]{1,30})/i);
+  if(m){
+    const prefix=m[1].replace(/\.?$/,'.');
+    const name=m[2].trim().split(/[,\.;]/)[0].trim();
+    // Пробуем добавить регион (область/край/республика)
+    const regM=s.match(/([А-ЯЁ][а-яё]+(?:ая|ой)\s+(?:обл(?:асть)?|край|респ(?:ублика)?|округ))/i);
+    const region=regM?', '+regM[1].replace(/область/i,'обл.').replace(/республика/i,'Респ.'):'';
+    return prefix+' '+name+region;
+  }
+
+  // 4. Разбиваем по запятой и ищем «городскую» часть
+  // Маркеры улиц/домов — если часть содержит их, пропускаем
+  const STREET=/\b(?:ул\.|улица|пр-т|проспект|пр\.|шоссе|ш\.|пер\.|переулок|бульв?\.?|набережная|площадь|пл\.|тракт|проезд|линия|д\.\s*\d|стр\.\s*\d|корп?\.\s*\d|офис|комн?\.)/i;
+  const REGION=/\b(?:обл(?:асть)?|край|район|округ|республика)\b/i;
+  const parts=s.split(',');
+  for(const p of parts){
+    const t=p.trim();
+    if(!t||t.length<2) continue;
+    if(/^\d/.test(t)) continue;          // индекс или номер дома
+    if(STREET.test(t)) continue;          // улица/дом
+    if(REGION.test(t)&&t.length>25) continue; // длинное название региона
+    if(/\d/.test(t)&&/[а-яА-Я]/.test(t)&&t.length<6) continue; // «2а», «7А» и т.п.
+    if(t.length>=2&&t.length<=45) return t;
+  }
+
+  // 5. Fallback — первое слово после очистки
+  return s.split(',')[0].replace(/\b(?:ул|пр-т|пр|г)\./gi,'').trim().split(/\s{2,}/)[0].trim().slice(0,40);
+}
+
 // ── Умное сокращение тегов услуг ───────────────────────────────────────────
 const _ABBR=[
   // Порядок важен — длинные фразы первыми
@@ -331,7 +377,7 @@ function render(){
     const cardCls='card'+(isOwn?' vip-own':isVip?' vip-partner':'');
     return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
-      +'<div class="cb">'+badge+'<div class="cn">'+E(c.name)+'</div><div class="cs">'+E(c.city||'')+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
+      +'<div class="cb">'+badge+'<div class="cn">'+E(c.name)+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
       +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+'</div>'
       +'</div>';
   }).join('');
