@@ -1,4 +1,4 @@
-﻿"""
+"""
 METALLBOT — Парсер сайтов партнёров.
 Извлекает текст, структурированные данные и фотографии с сайта компании.
 Использует Claude AI для интеллектуального анализа контента.
@@ -223,13 +223,13 @@ def _extract_contacts_direct(soup: BeautifulSoup, raw_html: str = "") -> dict:
 
         phone_patterns = [
             # Стандартный российский с разделителями
-            r'(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-\.\u00a0]?\d{3}[\s\-\.\u00a0]?\d{2}[\s\-\.\u00a0]?\d{2}',
+            r'(?:\+7|8)[\s\-]?\(?\d{3,4}\)?[\s\-\.\u00a0]?\d{2,3}[\s\-\.\u00a0]?\d{2}[\s\-\.\u00a0]?\d{2}',
             # Сплошные 11 цифр начиная с 7 или 8
             r'(?:\+7|8)\d{10}',
             # 10 цифр без кода страны
             r'9\d{9}',
             # Со скобками без кода: (499) 123-45-67
-            r'\(\d{3,4}\)[\s\-]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}',
+            r'\(\d{3,4}\)[\s\-]?\d{2,3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}',
         ]
         for source in search_sources:
             if result["phone"]:
@@ -252,21 +252,88 @@ def _extract_contacts_direct(soup: BeautifulSoup, raw_html: str = "") -> dict:
         elif len(digits) == 10:
             digits = '7' + digits
         if len(digits) == 11:
-            result["phone"] = f'+{digits[0]} ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}'
+            # Определяем длину кода города по первым цифрам
+            # 4-значные коды: 8422(Ульяновск), 8332(Киров), 4722(Губкин) и т.д.
+            _FOUR_DIGIT_CODES = {
+                '8422','8332','4722','4832','4812','8482','4852','4872',
+                '4932','3412','4742','4732','8442','8452','8462','8472',
+            }
+            _city = digits[1:5]
+            if _city[:4] in _FOUR_DIGIT_CODES or (_city[:4].startswith('8') and _city[:3] not in ('800','812')):
+                result["phone"] = f'+{digits[0]} ({digits[1:5]}) {digits[5:7]}-{digits[7:9]}-{digits[9:11]}'
+            else:
+                result["phone"] = f'+{digits[0]} ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}'
+
+
+    # ── 6а. Joomla email антиспам-защита ─────────────────────────────────────
+    # Joomla прячет email в JS-массив с ASCII-кодами: l[4]=' 107' и т.д.
+    # Символы хранятся в обратном порядке.
+    if not result["email"] and raw_html:
+        try:
+            import re as _re_j
+            # Находим все блоки обфускации
+            joomla_entries = _re_j.findall(r"l\[(\d+)\]=' (\d+)'", raw_html)
+            if joomla_entries:
+                num_map = {int(k): chr(int(v)) for k, v in joomla_entries
+                           if 32 <= int(v) <= 126}
+                if num_map:
+                    max_idx = max(num_map.keys())
+                    chars = [num_map.get(i, '') for i in range(max_idx + 1)]
+                    decoded = ''.join(reversed(chars))
+                    # \b гарантирует границу слова — TLD не «склеивается» с следующим словом
+                    em_candidates = _re_j.findall(
+                        r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}(?!\w)', decoded
+                    )
+                    skip_domains = ('sentry.io', 'example.com', 'test.com', 'wixpress.com')
+                    for em in em_candidates:
+                        if not any(d in em.lower() for d in skip_domains):
+                            result["email"] = em.lower()
+                            logger.info("[parser] Joomla email decoded: %s", em)
+                            break
+        except Exception:
+            pass
+
+    # ── 6б. Человеко-читаемая анти-спам обфускация email ────────────────────
+    # Форматы: "info at domain dot ru", "info[at]domain[dot]ru",
+    #          "info(at)domain(dot)ru", "info собака domain точка ru"
+    _SKIP_EM = ('sentry.io', 'example.com', 'test.com', 'yourdomain',
+                'email.com', 'domain.com', 'wixpress.com', 'googleapis')
+    if not result["email"]:
+        _obf_sources = [soup.get_text(' ', strip=True)]
+        if raw_html:
+            _obf_sources.append(re.sub(r'<[^>]+>', ' ', raw_html))
+        _OBFUSC = [
+            # info at domain dot ru  /  info [at] domain [dot] ru  /  (at) (dot)
+            r'([a-zA-Z0-9_.+-]{2,30})\s*(?:\[at\]|\(at\)|(?<!\w)at(?!\w))\s*'
+            r'([a-zA-Z0-9-]{2,50})\s*(?:\[dot\]|\(dot\)|(?<!\w)dot(?!\w))\s*'
+            r'([a-zA-Z]{2,6})',
+            # info собака / эт domain точка ru
+            r'([a-zA-Z0-9_.+-]{2,30})\s*(?:собака|эт|ат)\s*'
+            r'([a-zA-Z0-9-]{2,50})\s*(?:точка|dot)\s*'
+            r'([a-zA-Z]{2,6})',
+        ]
+        for _src in _obf_sources:
+            if result["email"]:
+                break
+            for _pat in _OBFUSC:
+                _m = re.search(_pat, _src, re.IGNORECASE)
+                if _m:
+                    _cand = f"{_m.group(1)}@{_m.group(2)}.{_m.group(3)}".lower().strip()
+                    if not any(d in _cand for d in _SKIP_EM) and len(_cand) < 80:
+                        result["email"] = _cand
+                        logger.info("[parser] Anti-spam email decoded: %s", _cand)
+                        break
 
     # ── 6. Email: видимый текст + raw HTML ──────────────────────────────────
     if not result["email"]:
         email_pat = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}'
-        # Плохие домены — фильтруем системные адреса
-        skip_domains = ('sentry.io', 'example.com', 'test.com', 'yourdomain',
-                        'email.com', 'domain.com', 'wixpress.com', 'googleapis')
+
         def _good_email(e: str) -> bool:
-            return '@' in e and not any(d in e.lower() for d in skip_domains)
+            return '@' in e and not any(d in e.lower() for d in _SKIP_EM)
 
         sources = [soup.get_text(' ', strip=True)]
         if raw_html:
-            import re as _re3
-            sources.append(_re3.sub(r'<[^>]+>', ' ', raw_html))
+            sources.append(re.sub(r'<[^>]+>', ' ', raw_html))
 
         for source in sources:
             if result["email"]:
@@ -322,71 +389,203 @@ def _extract_text(soup: BeautifulSoup) -> str:
     return "\n".join(deduped)
 
 
-def _collect_image_urls(soup: BeautifulSoup, base_url: str) -> list[tuple[str, str]]:
+def _extract_services_equipment_from_html(soup: BeautifulSoup) -> dict:
     """
-    Собирает все кандидаты на фото: (url, alt).
-    Приоритет: <img>, srcset, og:image, background-image в style.
+    Резервный HTML-парсер услуг и оборудования.
+    Ищет заголовки (h1-h4) с ключевыми словами и собирает <li>/<p> под ними.
+    Возвращает {'services': [...], 'equipment': [...], 'materials': [...]}.
     """
-    candidates: list[tuple[str, str]] = []
+    SERVICE_KW  = {'услуг', 'работ', 'сервис', 'направлени', 'технолог',
+                   'возможност', 'специализац', 'выполняем', 'производим',
+                   'изготовляем', 'обрабатываем', 'виды'}
+    EQUIP_KW    = {'оборудован', 'станк', 'парк', 'техник', 'мощност', 'установк'}
+    MATERIAL_KW = {'материал', 'металл', 'сплав', 'сырьё', 'сырье'}
+
+    services, equipment, materials = [], [], []
+
+    def _items_after_heading(heading_el) -> list[str]:
+        """Собирает текстовые элементы <li> или <p> идущие после заголовка."""
+        items = []
+        # Ищем ближайший ul/ol/div-контейнер с <li>
+        parent = heading_el.parent
+        if parent:
+            for el in parent.find_all(['li', 'p'], limit=30):
+                txt = el.get_text(' ', strip=True)
+                if 15 <= len(txt) <= 200:
+                    clean = re.sub(r'\s+', ' ', txt).strip()
+                    if clean not in items:
+                        items.append(clean)
+        # Если в родителе ничего — ищем следующий sibling-контейнер
+        if not items:
+            nxt = heading_el.find_next_sibling()
+            while nxt and len(items) < 20:
+                if nxt.name in ('ul', 'ol', 'div'):
+                    for li in nxt.find_all('li', limit=20):
+                        txt = li.get_text(' ', strip=True)
+                        if 5 <= len(txt) <= 200:
+                            clean = re.sub(r'\s+', ' ', txt).strip()
+                            if clean not in items:
+                                items.append(clean)
+                    break
+                nxt = nxt.find_next_sibling()
+        return items[:20]
+
+    for h in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5']):
+        txt = h.get_text(' ', strip=True).lower()
+        if not txt:
+            continue
+        if any(kw in txt for kw in SERVICE_KW) and not any(kw in txt for kw in EQUIP_KW):
+            if len(services) < 20:
+                services.extend(_items_after_heading(h))
+        elif any(kw in txt for kw in EQUIP_KW):
+            if len(equipment) < 20:
+                equipment.extend(_items_after_heading(h))
+        elif any(kw in txt for kw in MATERIAL_KW):
+            if len(materials) < 15:
+                materials.extend(_items_after_heading(h))
+
+    # Дедупликация
+    def _dedup(lst):
+        seen, out = set(), []
+        for x in lst:
+            k = x[:60].lower()
+            if k not in seen:
+                seen.add(k); out.append(x)
+        return out
+
+    return {
+        'services':  _dedup(services)[:20],
+        'equipment': _dedup(equipment)[:20],
+        'materials': _dedup(materials)[:15],
+    }
+
+
+def _get_section_context(el, depth: int = 4) -> str:
+    """
+    Возвращает текстовый контекст вокруг элемента — заголовок раздела.
+    Поднимается по дереву до depth уровней, ищет h1-h4 или class/id с ключами.
+    """
+    node = el
+    for _ in range(depth):
+        node = getattr(node, "parent", None)
+        if node is None:
+            break
+        # Ищем заголовок внутри этого блока
+        for h in node.find_all(["h1", "h2", "h3", "h4"], limit=1):
+            txt = h.get_text(" ", strip=True)
+            if txt:
+                return txt[:60]
+        # Смотрим class/id блока
+        cls = " ".join(node.get("class", []))
+        nid = node.get("id", "")
+        hint = (cls + " " + nid).lower()
+        for kw in ("partner", "client", "клиент", "партнёр", "партнер",
+                   "сертиф", "certif", "award", "наград",
+                   "логотип", "logo", "галерея", "gallery", "отзыв", "review"):
+            if kw in hint:
+                return f"[{kw}]"
+    return ""
+
+
+# Ключевые слова разделов — изображения из этих разделов НЕ берём
+_BAD_SECTION_KW = {
+    "партнёр", "партнер", "partner", "клиент", "client", "покупател",
+    "заказчик", "сертиф", "certif", "награда", "award", "лицензи",
+    "отзыв", "review", "команда", "team", "сотрудник", "персонал",
+    "вакансии", "career", "контакты", "contact",
+}
+
+
+def _collect_image_urls(soup: BeautifulSoup, base_url: str) -> list[tuple[str, str, str]]:
+    """
+    Собирает кандидаты на фото: (url, alt, section_context).
+    Приоритет: og:image, <img>, data-original (Tilda/lazy), srcset, CSS background.
+    """
+    candidates: list[tuple[str, str, str]] = []
     seen: set[str] = set()
 
-    def _add(url: str, alt: str = "") -> None:
+    def _add(url: str, alt: str = "", ctx: str = "") -> None:
         if not url:
             return
         url = url.strip()
         if url.startswith("data:"):
             return
         abs_url = urljoin(base_url, url)
-        # Чистим query-параметры типа ?resize=300x200 но сохраняем путь
         parsed = urlparse(abs_url)
         clean = parsed._replace(query="", fragment="").geturl()
         if clean not in seen:
             seen.add(clean)
-            candidates.append((clean, alt))
+            candidates.append((clean, alt, ctx))
 
     # og:image — обычно самый репрезентативный
     for meta in soup.find_all("meta", property=lambda p: p and "image" in p.lower()):
-        _add(meta.get("content", ""), "og:image")
+        _add(meta.get("content", ""), "og:image", "og:image")
 
     # Все <img>
     for img in soup.find_all("img"):
-        src = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or ""
+        src = (img.get("data-original") or img.get("src")
+               or img.get("data-src") or img.get("data-lazy-src") or "")
         srcset = img.get("srcset", "")
         alt = img.get("alt", "")
+        ctx = _get_section_context(img)
 
-        # Из srcset берём наибольшее разрешение
         if srcset:
             parts = [p.strip().split() for p in srcset.split(",") if p.strip()]
-            # Сортируем по числу (ширина) по убыванию
             parts.sort(key=lambda p: float(p[1].rstrip("wx")) if len(p) > 1 else 0, reverse=True)
             if parts:
-                _add(parts[0][0], alt)
+                _add(parts[0][0], alt, ctx)
         if src:
-            _add(src, alt)
+            _add(src, alt, ctx)
+
+    # data-original / data-bg на ЛЮБЫХ тегах (Tilda, WIX и др.)
+    for el in soup.find_all(True):
+        if el.name == "img":
+            continue
+        for attr in ("data-original", "data-bg", "data-image", "data-src"):
+            val = el.get(attr, "")
+            if val and not val.startswith("data:"):
+                ctx = _get_section_context(el)
+                _add(val, el.get("alt", "") or el.get("title", ""), ctx)
 
     # CSS background-image
     for el in soup.find_all(style=True):
         matches = re.findall(r'url\(["\']?([^"\'()]+)["\']?\)', el["style"])
         for m in matches:
-            _add(m)
+            ctx = _get_section_context(el)
+            _add(m, "", ctx)
 
     return candidates
 
 
-def _is_likely_photo(url: str) -> bool:
-    """Эвристика: не иконка и не логотип."""
+# URL-паттерны, однозначно указывающие на «плохое» изображение
+_BAD_URL_KW = [
+    "logo", "icon", "favicon", "banner", "sprite", "pixel", "arrow",
+    "button", "bg_", "_bg", "background", "placeholder", "thumb_small",
+    "1x1", "blank", "loading",
+    # Разделы сайта с партнёрами/клиентами
+    "partner", "client", "клиент", "партнер", "сертиф", "award",
+    "/team/", "/staff/", "/people/",
+    # Tilda thumbs
+    "/resize/20x/", "/resize/40x/", "/resize/80x/",
+]
+
+
+def _is_likely_photo(url: str, ctx: str = "") -> bool:
+    """Эвристика: не иконка, не логотип, не изображение из раздела партнёров."""
     low = url.lower()
-    skip_keywords = [
-        "logo", "icon", "favicon", "banner", "sprite", "pixel",
-        "arrow", "button", "bg_", "_bg", "background", "placeholder",
-        "thumb_small", "1x1", "blank", "loading",
-    ]
-    # Проверяем расширение
+    # Расширение
     path = urlparse(low).path
     ext = Path(path).suffix.lower()
     if ext not in (".jpg", ".jpeg", ".png", ".webp"):
         return False
-    return not any(kw in low for kw in skip_keywords)
+    # Плохие URL-паттерны
+    if any(kw in low for kw in _BAD_URL_KW):
+        return False
+    # Плохой раздел страницы
+    ctx_low = ctx.lower()
+    if any(kw in ctx_low for kw in _BAD_SECTION_KW):
+        return False
+    return True
 
 
 # ── Основной класс ────────────────────────────────────────────────────────────
@@ -502,6 +701,20 @@ class SiteParser:
             except Exception as _e:
                 logger.debug("[parser] contacts page skip: %s", _e)
 
+        # ── HTML-fallback для услуг / оборудования / материалов ─────────────────
+        # Если Claude вернул пустые списки — пробуем извлечь из структуры HTML
+        if not result.services or not result.equipment:
+            html_data = _extract_services_equipment_from_html(soup)
+            if not result.services and html_data['services']:
+                result.services = html_data['services']
+                logger.info("[parser] Services from HTML fallback: %d items", len(result.services))
+            if not result.equipment and html_data['equipment']:
+                result.equipment = html_data['equipment']
+                logger.info("[parser] Equipment from HTML fallback: %d items", len(result.equipment))
+            if not result.materials and html_data['materials']:
+                result.materials = html_data['materials']
+                logger.info("[parser] Materials from HTML fallback: %d items", len(result.materials))
+
         # Fallback: берём direct_contacts если Claude не нашёл или нашёл < 10 цифр
         import re as _re2
         claude_phone  = result.contacts.get("phone", "")
@@ -524,13 +737,19 @@ class SiteParser:
 
         # ── 4. Сбор и скачивание фото ─────────────────────────────────────────
         await _progress("🖼 Собираю изображения...")
-        img_candidates = _collect_image_urls(soup, result.url)
-        # Базовая фильтрация — убираем явные иконки/логотипы
-        img_candidates = [(u, a) for u, a in img_candidates if _is_likely_photo(u)]
+        # _collect_image_urls возвращает (url, alt, section_context)
+        img_candidates_full = _collect_image_urls(soup, result.url)
+        # Базовая фильтрация — убираем иконки, логотипы, изображения из плохих разделов
+        img_candidates_full = [
+            (u, a, ctx) for u, a, ctx in img_candidates_full
+            if _is_likely_photo(u, ctx)
+        ]
+        # Для дальнейшей работы используем тройки (url, alt, ctx)
+        img_candidates = img_candidates_full
 
         if img_candidates and ANTHROPIC_API_KEY:
             # Claude отбирает самые полезные фото (цех, оборудование, продукция)
-            await _progress(f"🤖 Claude отбирает лучшие фото из {len(img_candidates)}...")
+            await _progress(f"🤖 Отбираю лучшие фото из {len(img_candidates)}...")
             try:
                 img_candidates = await SiteParser._select_images_with_claude(img_candidates)
             except Exception as e:
@@ -539,8 +758,9 @@ class SiteParser:
 
         if img_candidates:
             await _progress(f"📥 Скачиваю фото ({min(len(img_candidates), MAX_IMAGES)} шт.)...")
+            # _download_images ожидает (url, alt) — берём первые два элемента
             downloaded = await SiteParser._download_images(
-                img_candidates, result.company_name
+                [(u, a) for u, a, *_ in img_candidates], result.company_name
             )
             result.images = downloaded
             await _progress(f"✅ Сохранено {len(downloaded)} фото")
@@ -633,8 +853,9 @@ class SiteParser:
                 candidate_urls.append(u)
 
         result = {"phone": "", "email": ""}
-        EMAIL_PAT = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}")
-        PHONE_PAT = re.compile(r"(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}")
+        EMAIL_PAT  = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}(?!\w)")
+        # 3 или 4 цифры в коде города (8422 — Ульяновск и другие региональные)
+        PHONE_PAT  = re.compile(r"(?:\+7|8)[\s\-]?\(?\d{3,4}\)?[\s\-\.]?\d{2,3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}")
         SKIP_DOMAINS = ("sentry.io", "example.com", "test.com", "wixpress.com", "googleapis")
 
         try:
@@ -651,13 +872,33 @@ class SiteParser:
                             if resp.status != 200:
                                 continue
                             html2 = await resp.text(errors="replace")
-                            # Ищем email
+                            # Ищем email обычным regex
                             for m in EMAIL_PAT.finditer(html2):
                                 e = m.group(0).lower()
                                 if not any(d in e for d in SKIP_DOMAINS):
                                     result["email"] = e
                                     logger.info("[parser] Email с контакт-страницы %s: %s", url, e)
                                     break
+                            # Joomla email антиспам (ASCII-коды в JS-массиве)
+                            if not result["email"]:
+                                try:
+                                    joomla_entries = re.findall(r"l\[(\d+)\]=' (\d+)'", html2)
+                                    if joomla_entries:
+                                        num_map = {int(k): chr(int(v)) for k, v in joomla_entries
+                                                   if 32 <= int(v) <= 126}
+                                        if num_map:
+                                            max_idx = max(num_map.keys())
+                                            chars = [num_map.get(i, '') for i in range(max_idx + 1)]
+                                            decoded = ''.join(reversed(chars))
+                                            for em in re.findall(
+                                                r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,6}(?!\w)', decoded
+                                            ):
+                                                if not any(d in em.lower() for d in SKIP_DOMAINS):
+                                                    result["email"] = em.lower()
+                                                    logger.info("[parser] Joomla email (контакт-стр) %s: %s", url, em)
+                                                    break
+                                except Exception:
+                                    pass
                             # Ищем телефон если ещё нет
                             if not result["phone"]:
                                 pm = PHONE_PAT.search(html2)
@@ -696,29 +937,34 @@ class SiteParser:
 ТЕКСТ САЙТА:
 {text[:MAX_TEXT_CHARS]}
 
-Верни ТОЛЬКО валидный JSON без markdown-обёртки, в точно таком формате:
+ВАЖНЫЕ ПРАВИЛА ИЗВЛЕЧЕНИЯ:
+— "services": перечисли ВСЕ виды работ/услуг/технологий которые компания выполняет.
+  Ищи в разделах «Услуги», «Виды работ», «Технологии», «Возможности», «Направления», «Что мы делаем»,
+  в маркированных списках (li), в заголовках разделов, в навигации, в тексте «Мы выполняем...».
+  Каждая услуга — отдельная строка. Минимум 3-10 пунктов если сайт металлообрабатывающий.
+— "equipment": конкретные станки и оборудование (марки, модели, типы).
+  Ищи в разделах «Оборудование», «Парк оборудования», «Технический парк», «Производство».
+— "materials": с какими материалами/металлами/сплавами работают.
+— "contacts": email — ищи также в форматах "info at domain dot ru", "info[at]domain.ru", "info собака domain точка ru".
+
+Верни ТОЛЬКО валидный JSON без markdown-обёртки:
 {{
-  "company_name": "Полное официальное название компании (ООО/АО/ИП + название)",
-  "company_type": "coop ИЛИ supplier ИЛИ both — coop если выполняют работы/услуги на заказ (обработка, производство, покрытие, сварка и т.д.), supplier если продают материалы/комплектующие/оборудование, both если и то и другое",
-  "description": "краткое описание компании 2-4 предложения",
-  "services": ["услуга 1", "услуга 2"],
-  "equipment": ["станок/оборудование 1", "станок 2"],
-  "materials": ["материал 1", "материал 2"],
+  "company_name": "Полное официальное название (ООО/АО/ИП + название)",
+  "company_type": "coop|supplier|both — coop если выполняют работы на заказ, supplier если продают материалы/оборудование",
+  "description": "краткое описание 2-4 предложения",
+  "services": ["токарная обработка", "фрезерная обработка", "..."],
+  "equipment": ["токарный ЧПУ Mazak", "фрезерный обрабатывающий центр", "..."],
+  "materials": ["сталь", "нержавеющая сталь", "алюминий", "..."],
   "certificates": ["ISO 9001", "ГОСТ ..."],
-  "contacts": {{
-    "phone": "+7...",
-    "email": "...",
-    "address": "..."
-  }},
+  "contacts": {{"phone": "+7...", "email": "...", "address": "..."}},
   "work_hours": "Пн-Пт 9:00-18:00",
   "founded_year": "2005",
   "employees": "50-100 человек",
   "area_sqm": "2000 кв.м",
-  "extra_facts": ["интересный факт 1", "факт 2"]
+  "extra_facts": ["факт 1", "факт 2"]
 }}
 
-Если какое-то поле отсутствует — оставь пустую строку или пустой массив.
-Отвечай только JSON, без пояснений."""
+Если поле отсутствует — пустая строка или []. Только JSON, без пояснений."""
 
         msg = await asyncio.wait_for(
             client.messages.create(
@@ -740,8 +986,8 @@ class SiteParser:
     # ── Claude: отбор полезных фото ──────────────────────────────────────────
     @staticmethod
     async def _select_images_with_claude(
-        candidates: list[tuple[str, str]]
-    ) -> list[tuple[str, str]]:
+        candidates: list[tuple]   # (url, alt) или (url, alt, ctx)
+    ) -> list[tuple]:
         """
         Просит Claude Haiku выбрать из кандидатов наиболее полезные фото
         для карточки промышленной компании: цех, оборудование, продукция.
@@ -750,35 +996,48 @@ class SiteParser:
         if not candidates:
             return candidates
 
-        # Берём до 30 кандидатов для анализа (больше — дольше и дороже)
+        # Берём до 30 кандидатов для анализа
         pool = candidates[:30]
 
         lines = []
-        for i, (url, alt) in enumerate(pool):
+        for i, item in enumerate(pool):
+            url = item[0]
+            alt = item[1] if len(item) > 1 else ""
+            ctx = item[2] if len(item) > 2 else ""
             fname = Path(urlparse(url).path).name[:40]
             alt_str = alt.strip()[:40] if alt.strip() else "—"
-            lines.append(f"{i}: {fname} | alt={alt_str}")
+            ctx_str = ctx.strip()[:50] if ctx.strip() else "—"
+            lines.append(f"{i}: {fname} | alt={alt_str} | раздел={ctx_str}")
 
         import json as _json
         client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-        prompt = f"""Ты помогаешь отбирать фото для карточки промышленной компании.
-Из списка изображений выбери 5-8 ЛУЧШИХ — тех, что скорее всего показывают:
-- производственный цех, станки, оборудование
-- готовую продукцию, детали, изделия
-- территорию завода, склад
+        prompt = f"""Отбираешь фото для карточки промышленного предприятия в B2B-системе.
 
-ИСКЛЮЧАЙ изображения которые выглядят как: логотип, иконка, баннер с текстом, фоновый паттерн, фото людей/офиса, сертификаты (их покажем отдельно).
+ВЫБИРАЙ (5-8 штук) — изображения, которые скорее всего показывают:
+✅ производственный цех, станки, оборудование
+✅ готовую продукцию, детали, металлоизделия
+✅ территорию завода, склад с металлом
 
-СПИСОК (индекс: имя файла | alt):
+СТРОГО ИСКЛЮЧАЙ — даже если имя файла выглядит как фото:
+❌ логотипы ЛЮБЫХ компаний (своих, партнёров, клиентов, поставщиков)
+❌ раздел "Наши партнёры" / "Клиенты" / "Работаем с..." — там чужие логотипы
+❌ сертификаты, дипломы, награды
+❌ иконки, баннеры с текстом, фоновые паттерны
+❌ фото людей без производственного контекста
+
+ПОДСКАЗКА: колонка "раздел" показывает заголовок блока на сайте, где найдено изображение.
+Если раздел содержит слова "партнёр", "клиент", "сертификат" — почти наверняка плохой выбор.
+
+СПИСОК (индекс: имя файла | alt | раздел):
 {chr(10).join(lines)}
 
-Верни ТОЛЬКО JSON: {{"selected": [0, 2, 5, ...]}} — список индексов лучших фото.
-Если подходящих нет — верни {{"selected": []}}."""
+Верни ТОЛЬКО JSON: {{"selected": [0, 2, 5], "reason": "краткое пояснение"}}
+Если хороших нет — верни {{"selected": [], "reason": "..."}}"""
 
         msg = await asyncio.wait_for(
             client.messages.create(
                 model="claude-haiku-4-5",
-                max_tokens=200,
+                max_tokens=300,
                 messages=[{"role": "user", "content": prompt}],
             ),
             timeout=20,
@@ -790,8 +1049,12 @@ class SiteParser:
 
         data = _json.loads(m.group(0))
         indices = data.get("selected", [])
+        reason  = data.get("reason", "")
+        if reason:
+            logger.info("[parser] Claude фото: %s", reason)
+
         if not indices:
-            # Claude не нашёл подходящих — берём первые MAX_IMAGES
+            logger.info("[parser] Claude не нашёл подходящих фото — используем первые %d", MAX_IMAGES)
             return pool[:MAX_IMAGES]
 
         selected = [pool[i] for i in indices if 0 <= i < len(pool)]
