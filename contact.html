@@ -217,6 +217,77 @@ const LB={coop:'Кооператор',supplier:'Поставщик',both:'Коо
 const TC={coop:'tc',supplier:'ts',both:'tb'};
 const BC={coop:'c',supplier:'s',both:'b'};
 
+// ── Умное сокращение тегов услуг ───────────────────────────────────────────
+const _ABBR=[
+  // Порядок важен — длинные фразы первыми
+  ['электроэрозионная резка',     'ЭЭО резка'],
+  ['электроэрозионная',           'ЭЭО'],
+  ['токарная обработка',          'токарная'],
+  ['фрезерная обработка',         'фрезерная'],
+  ['слесарная обработка',         'слесарная'],
+  ['шлифовальная обработка',      'шлифование'],
+  ['механическая металлообработка','мех. металлообр.'],
+  ['металлообработка',            'металлообр.'],
+  ['изготовление и монтаж',       'изгот. + монтаж'],
+  ['проектирование и изготовление','проект. + изгот.'],
+  ['проектирование и производство','проект. + произв.'],
+  ['и изготовление',              '+ изгот.'],
+  ['и производство',              '+ произв.'],
+  ['изготовление',                'изгот.'],
+  ['производство',                'произв.'],
+  ['проектирование',              'проект.'],
+  ['электрооборудования',         'электрообор.'],
+  ['электрооборудование',         'электрообор.'],
+  ['на станках с чпу',            'на ЧПУ'],
+  ['на станках чпу',              'на ЧПУ'],
+  ['на чпу станках',              'на ЧПУ'],
+  ['на ленточнопильном станке',   ''],
+  ['на ленточнопильных станках',  ''],
+  ['лазерная резка металлов',     'лазерная резка'],
+  ['плазменная резка металлов',   'плазм. резка'],
+  ['порошковая окраска',          'порошок'],
+  ['гальваническое покрытие',     'гальваника'],
+  ['термическая обработка',       'термообр.'],
+  ['химическое покрытие',         'хим. покрытие'],
+  ['механическая обработка',      'мех. обработка'],
+  ['обработка металлов',          'обр. металлов'],
+  ['обработка деталей',           'обр. деталей'],
+  ['обработка материалов',        'обр. материалов'],
+  ['обработка',                   'обр.'],
+  ['под давлением',               ''],
+  ['металлов',                    'мет.'],
+  ['деталей',                     'дет.'],
+];
+// Предлоги в конце обрезанной строки — убираем
+const _PREPS=/\s+(на|в|с|и|к|о|за|по|до|об|из|у|а)$/i;
+function _shrinkTag(raw){
+  let t=(raw||'').trim().split(/[;,]/)[0].trim();
+  if(!t) return '';
+  let lo=t.toLowerCase();
+  for(const [long,short] of _ABBR) lo=lo.split(long).join(short);
+  t=lo.trim().replace(/\s{2,}/g,' ').replace(_PREPS,'').trim();
+  if(t.length<=24) return t;
+  // Обрезка по границе слова
+  const cut=t.slice(0,24);
+  const sep=Math.max(cut.lastIndexOf(' '),cut.lastIndexOf('-'));
+  let res=sep>8 ? cut.slice(0,sep).trimEnd() : cut;
+  // Убираем хвостовой предлог после обрезки
+  res=res.replace(_PREPS,'').trim();
+  return res;
+}
+function mkTags(c){
+  // Берём specialization + первые 2 термина из service
+  const sources=[];
+  if(c.specialization) sources.push(c.specialization.split(/[;,]/)[0].trim());
+  if(c.service){
+    const parts=c.service.split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+    for(const p of parts){ if(!sources.includes(p)) sources.push(p); if(sources.length>=3) break; }
+  }
+  return sources.slice(0,2)
+    .map(t=>{ const s=_shrinkTag(t); return s?'<span class="tg '+(TC[c.kind]||'')+'">'+E(s)+'</span>':''; })
+    .filter(Boolean).join('');
+}
+
 // ── Skeleton loaders ───────────────────────────────────────────────────────
 function skL(n=6){return Array.from({length:n},()=>'<div class="skc"><div style="flex:1"><div class="sk sk-l w7"></div><div class="sk sk-l w4"></div></div></div>').join('')}
 function skD(){return'<div class="dsk"><div class="dsk-h"><div class="sk sk-l w7" style="height:18px;margin-bottom:10px"></div><div class="sk sk-l w4"></div></div><div class="dsk-s"><div class="sk dsk-st"></div><div class="sk dsk-st"></div><div class="sk dsk-st"></div></div><div class="sk dsk-b"></div><div class="sk dsk-b" style="height:100px"></div></div>'}
@@ -250,7 +321,7 @@ function render(){
     return;
   }
   el.innerHTML=f.map((c,i)=>{
-    const tgs=[c.specialization,c.service].filter(Boolean).slice(0,2).map(t=>'<span class="tg '+(TC[c.kind]||'')+'">'+E(t.slice(0,18))+'</span>').join('');
+    const tgs=mkTags(c);
     const s=st(c.rating);
     const statusL=(c.status||'').toLowerCase().trim();
     const isOwn=statusL==='vip_own';
