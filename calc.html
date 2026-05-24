@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>METALLBOT — Калькулятор цены</title>
+<style>
+:root {
+  --bg:     #1A1428;
+  --card:   #221C34;
+  --border: #3A3058;
+  --accent: #C8124E;
+  --gold:   #FFB040;
+  --text:   #E8E0F4;
+  --muted:  #6B5F80;
+  --green:  #28C76F;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:Arial,sans-serif; min-height:100vh; }
+
+header {
+  background:#150F22; border-bottom:1px solid var(--border);
+  padding:14px 20px; display:flex; align-items:center; gap:14px;
+}
+header h1 { font-size:16px; font-weight:700; }
+.nav-links { margin-left:auto; display:flex; gap:10px; }
+.nav-links a {
+  color:var(--muted); font-size:12px; text-decoration:none;
+  padding:5px 12px; border:1px solid var(--border); border-radius:14px;
+  transition:color .15s, border-color .15s;
+}
+.nav-links a:hover, .nav-links a.active { color:var(--gold); border-color:var(--gold); }
+
+.layout {
+  max-width:820px; margin:0 auto; padding:24px 20px;
+  display:grid; grid-template-columns:1fr 1.2fr; gap:20px;
+}
+@media(max-width:620px){ .layout { grid-template-columns:1fr; } }
+
+/* ── Левая панель — форма ── */
+.panel {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:14px; padding:20px;
+}
+.panel h2 { font-size:14px; font-weight:700; margin-bottom:16px; color:var(--gold); }
+
+.field { margin-bottom:14px; }
+.field label { display:block; font-size:11px; color:var(--muted); margin-bottom:5px; letter-spacing:.04em; }
+.field input[type=number] {
+  width:100%; background:#2A2040; border:1px solid var(--border);
+  border-radius:8px; padding:9px 12px; color:var(--text); font-size:14px; outline:none;
+  transition:border-color .15s;
+}
+.field input:focus { border-color:var(--gold); }
+
+/* Материал — кнопки */
+.mat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.mat-btn {
+  padding:9px 6px; border-radius:9px; border:2px solid var(--border);
+  background:transparent; color:var(--muted); font-size:12px; font-weight:600;
+  cursor:pointer; text-align:center; transition:all .15s; line-height:1.3;
+}
+.mat-btn:hover { border-color:var(--gold); color:var(--gold); }
+.mat-btn.active { border-color:var(--gold); background:#2A2010; color:var(--gold); }
+
+/* Сложность — радио */
+.complex-row { display:flex; gap:8px; }
+.cx-btn {
+  flex:1; padding:8px 4px; border-radius:8px; border:2px solid var(--border);
+  background:transparent; color:var(--muted); font-size:11px; font-weight:600;
+  cursor:pointer; text-align:center; transition:all .15s;
+}
+.cx-btn:hover { border-color:var(--blue, #4EA8DE); color:#4EA8DE; }
+.cx-btn.active { border-color:#4EA8DE; background:#0A1A2A; color:#4EA8DE; }
+
+.calc-btn {
+  width:100%; margin-top:16px;
+  padding:12px; border-radius:10px; border:none; cursor:pointer;
+  background:var(--accent); color:#fff; font-size:14px; font-weight:700;
+  letter-spacing:.04em; transition:opacity .15s, transform .1s;
+}
+.calc-btn:hover { opacity:.88; }
+.calc-btn:active { transform:scale(.98); }
+
+/* ── Правая панель — результат ── */
+.result { display:flex; flex-direction:column; gap:14px; }
+
+.info-row {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px;
+}
+.info-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:10px; padding:12px;
+}
+.info-card .lbl { font-size:10px; color:var(--muted); margin-bottom:4px; }
+.info-card .val { font-size:18px; font-weight:700; color:var(--gold); }
+.info-card .unit { font-size:11px; color:var(--muted); margin-left:3px; }
+
+/* Таблица тиражей */
+.tiers-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden;
+}
+.tiers-card table { width:100%; border-collapse:collapse; }
+.tiers-card th {
+  background:#2A2040; font-size:10px; color:var(--muted);
+  padding:8px 12px; text-align:left; letter-spacing:.06em; text-transform:uppercase;
+}
+.tiers-card td { padding:10px 12px; font-size:13px; border-top:1px solid var(--border); }
+.tiers-card tr:hover td { background:#2A2040; }
+.tier-qty   { color:var(--muted); font-weight:600; }
+.tier-cost  { color:var(--text); }
+.tier-net   { color:var(--gold); font-weight:700; }
+.tier-vat   { color:var(--green); font-weight:700; }
+
+/* KIM badge */
+.kim-bar {
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:12px; display:flex; align-items:center; gap:12px;
+}
+.kim-track { flex:1; height:6px; background:#3A3058; border-radius:3px; overflow:hidden; }
+.kim-fill  { height:100%; border-radius:3px; background:var(--gold); transition:width .4s; }
+.kim-label { font-size:11px; color:var(--muted); white-space:nowrap; }
+.kim-val   { font-size:15px; font-weight:700; color:var(--gold); }
+
+/* Пустой стейт */
+.placeholder {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; color:var(--muted); padding:40px 20px; text-align:center;
+  background:var(--card); border:1px dashed var(--border); border-radius:14px;
+}
+.placeholder svg { opacity:.3; }
+
+/* Spinner */
+.spinner {
+  width:32px; height:32px; border:3px solid var(--border);
+  border-top-color:var(--gold); border-radius:50%;
+  animation:spin .7s linear infinite; margin:0 auto;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">
+      ООО «Механические Технологии»
+    </div>
+    <h1>💰 Калькулятор цены</h1>
+  </div>
+  <nav class="nav-links">
+    <a href="/">Кооперация</a>
+    <a href="/calc.html" class="active">Калькулятор</a>
+    <a href="/docs.html">Документы</a>
+  </nav>
+</header>
+
+<div class="layout">
+
+  <!-- Форма -->
+  <div class="panel">
+    <h2>⚙️ Параметры детали</h2>
+
+    <div class="field">
+      <label>МАТЕРИАЛ</label>
+      <div class="mat-grid">
+        <button class="mat-btn active" data-mat="aluminium"  onclick="selMat(this)">Алюминий<br><span style="font-size:10px;font-weight:400">Д16Т · 2 000 ₽/кг</span></button>
+        <button class="mat-btn"        data-mat="brass"      onclick="selMat(this)">Латунь<br><span style="font-size:10px;font-weight:400">ЛС59-1 · 2 000 ₽/кг</span></button>
+        <button class="mat-btn"        data-mat="bronze"     onclick="selMat(this)">Бронза<br><span style="font-size:10px;font-weight:400">БрАЖ9-4 · 2 000 ₽/кг</span></button>
+        <button class="mat-btn"        data-mat="steel"      onclick="selMat(this)">Сталь 45<br><span style="font-size:10px;font-weight:400">ст.45 · 100 ₽/кг</span></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>НАРУЖНЫЙ ДИАМЕТР, мм</label>
+      <input type="number" id="d_out" value="20" min="3" max="200" step="0.5">
+    </div>
+
+    <div class="field">
+      <label>ДЛИНА ДЕТАЛИ, мм</label>
+      <input type="number" id="length" value="30" min="1" max="500" step="0.5">
+    </div>
+
+    <div class="field">
+      <label>ДИАМЕТР ОТВЕРСТИЯ, мм (0 = нет)</label>
+      <input type="number" id="d_hole" value="0" min="0" max="180" step="0.5">
+    </div>
+
+    <div class="field">
+      <label>СЛОЖНОСТЬ</label>
+      <div class="complex-row">
+        <button class="cx-btn active" data-cx="1" onclick="selCx(this)">Простая<br><small>1 уст.</small></button>
+        <button class="cx-btn"        data-cx="2" onclick="selCx(this)">Ступенч.<br><small>2 уст.</small></button>
+        <button class="cx-btn"        data-cx="3" onclick="selCx(this)">С резьбой<br><small>+слес.</small></button>
+      </div>
+    </div>
+
+    <button class="calc-btn" onclick="calculate()">💰 Рассчитать</button>
+  </div>
+
+  <!-- Результат -->
+  <div id="result-area" class="result">
+    <div class="placeholder">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9 7H6a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-3M16 5h2m0 0h2m-2 0V3m0 2v2M9 12h6M9 16h4"/>
+      </svg>
+      <p>Введите параметры<br>и нажмите «Рассчитать»</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var curMat = "aluminium";
+var curCx  = 1;
+
+function selMat(btn) {
+  document.querySelectorAll(".mat-btn").forEach(function(b){ b.classList.remove("active"); });
+  btn.classList.add("active");
+  curMat = btn.dataset.mat;
+}
+function selCx(btn) {
+  document.querySelectorAll(".cx-btn").forEach(function(b){ b.classList.remove("active"); });
+  btn.classList.add("active");
+  curCx = parseInt(btn.dataset.cx);
+}
+
+function fmt(n) {
+  if (n === null || n === undefined) return "—";
+  return Number(n).toLocaleString("ru-RU", {maximumFractionDigits:0});
+}
+
+function calculate() {
+  var d_out  = parseFloat(document.getElementById("d_out").value)  || 0;
+  var length = parseFloat(document.getElementById("length").value) || 0;
+  var d_hole = parseFloat(document.getElementById("d_hole").value) || 0;
+
+  if (d_out <= 0 || length <= 0) {
+    alert("Введите корректные размеры.");
+    return;
+  }
+
+  var ra = document.getElementById("result-area");
+  ra.innerHTML = '<div style="padding:40px;text-align:center"><div class="spinner"></div></div>';
+
+  var url = "/api/calc?material=" + curMat
+          + "&d_out=" + d_out
+          + "&length=" + length
+          + "&d_hole=" + d_hole
+          + "&complex_=" + curCx;
+
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(d){ renderResult(d, d_out, length); })
+    .catch(function(e){
+      ra.innerHTML = '<div class="placeholder"><p>❌ Ошибка: ' + e + '</p></div>';
+    });
+}
+
+function renderResult(d, d_out, length) {
+  var ra = document.getElementById("result-area");
+
+  // Цена за 1 шт
+  var t1 = d.tiers.find(function(t){ return t.qty === 1; }) || d.tiers[0];
+
+  // KIM
+  var kim = parseFloat(d.kim) || 0;
+  var kimColor = kim > 0.6 ? "#28C76F" : (kim > 0.35 ? "#FFB040" : "#C8124E");
+
+  // Строки таблицы
+  var rows = d.tiers.map(function(t){
+    return '<tr>'
+      + '<td class="tier-qty">' + fmt(t.qty) + ' шт</td>'
+      + '<td class="tier-cost">' + fmt(t.cost) + ' ₽</td>'
+      + '<td class="tier-net">'  + fmt(t.price_net)  + ' ₽</td>'
+      + '<td class="tier-vat">'  + fmt(t.price_vat)  + ' ₽</td>'
+      + '</tr>';
+  }).join("");
+
+  ra.innerHTML = ''
+
+    // Инфо-карточки
+    + '<div class="info-row">'
+    + '<div class="info-card"><div class="lbl">ЗАГОТОВКА</div><div class="val">∅' + d.blank_d + '×' + d.blank_l + '<span class="unit">мм</span></div></div>'
+    + '<div class="info-card"><div class="lbl">МАССА ЗАГОТ.</div><div class="val">' + d.blank_mass_g + '<span class="unit">г</span></div></div>'
+    + '<div class="info-card"><div class="lbl">МАССА ДЕТАЛИ</div><div class="val">' + d.part_mass_g + '<span class="unit">г</span></div></div>'
+    + '<div class="info-card"><div class="lbl">МАТЕРИАЛ (1 шт)</div><div class="val">' + fmt(d.mat_cost) + '<span class="unit">₽</span></div></div>'
+    + '</div>'
+
+    // КИМ
+    + '<div class="kim-bar">'
+    + '<div class="kim-label">КИМ</div>'
+    + '<div class="kim-track"><div class="kim-fill" style="width:'+Math.round(kim*100)+'%;background:'+kimColor+'"></div></div>'
+    + '<div class="kim-val" style="color:'+kimColor+'">' + Math.round(kim*100) + '%</div>'
+    + '</div>'
+
+    // Таблица тиражей
+    + '<div class="tiers-card">'
+    + '<table>'
+    + '<tr><th>Тираж</th><th>Себест.</th><th>Цена б/НДС</th><th>Цена с НДС</th></tr>'
+    + rows
+    + '</table></div>'
+
+    // Подпись
+    + '<div style="font-size:10px;color:var(--muted);text-align:right">'
+    + '⚠️ Ориентировочный расчёт · Маржа 60% · НДС 22%<br>'
+    + 'Для точного КП используйте /kp в боте'
+    + '</div>';
+}
+
+// Авторасчёт при Enter
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") calculate();
+});
+</script>
+</body>
+</html>

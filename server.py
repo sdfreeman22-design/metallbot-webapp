@@ -563,6 +563,159 @@ def api_images(company_slug: str):
             images.append(f"/static/images/{company_slug}/{f.name}")
     return {"images": images, "company": company_slug}
 
+# ════════════════════════════════════════════════════════════════════════════════
+#  Block 4 — История документов + Калькулятор цены
+# ════════════════════════════════════════════════════════════════════════════════
+
+DOCS_DIR = ROOT_DIR / "excel_docs"
+
+@app.get("/api/docs")
+def api_docs_list():
+    """Возвращает список папок деталей с перечнем файлов внутри."""
+    if not DOCS_DIR.exists():
+        return []
+    result = []
+    for folder in sorted(DOCS_DIR.iterdir(), key=lambda p: -p.stat().st_mtime):
+        if not folder.is_dir():
+            continue
+        files = {}
+        latest_mtime = 0
+        for f in folder.iterdir():
+            if f.suffix.lower() in (".xlsx", ".html", ".png"):
+                tag = _doc_tag(f.stem)
+                files[tag] = f.name
+                latest_mtime = max(latest_mtime, f.stat().st_mtime)
+        if files:
+            result.append({
+                "folder":  folder.name,
+                "files":   files,
+                "mtime":   int(latest_mtime),
+                "has_3d":  "3d" in files,
+                "has_kp":  "kp" in files,
+                "has_mk":  "mk" in files,
+            })
+    return result
+
+
+def _doc_tag(stem: str) -> str:
+    """КП_1_... → 'kp', МК_001_... → 'mk', 3D_preview → '3d', Расчёт... → 'calc'"""
+    s = stem.lower()
+    if s.startswith("кп") or s.startswith("kp"):       return "kp"
+    if s.startswith("мк") or s.startswith("mk"):       return "mk"
+    if "3d" in s or "preview" in s:                    return "3d"
+    if "расч" in s or "calc" in s or "price" in s:     return "calc"
+    return "other"
+
+
+@app.get("/api/docs/{folder}/{filename}")
+def api_doc_file(folder: str, filename: str):
+    """Отдаёт файл документа для скачивания / просмотра."""
+    # Защита от path traversal
+    safe_folder = Path(folder).name
+    safe_file   = Path(filename).name
+    path = DOCS_DIR / safe_folder / safe_file
+    if not path.exists():
+        raise HTTPException(404, "Файл не найден")
+    suffix = path.suffix.lower()
+    media = {
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".html": "text/html; charset=utf-8",
+        ".png":  "image/png",
+    }.get(suffix, "application/octet-stream")
+    # Для HTML — inline, для xlsx — attachment
+    disp = "inline" if suffix == ".html" else f'attachment; filename="{safe_file}"'
+    return FileResponse(
+        str(path),
+        media_type=media,
+        headers={"Content-Disposition": disp, "Cache-Control": "no-cache"},
+    )
+
+
+# ── Калькулятор цены ─────────────────────────────────────────────────────────
+
+_MATS = {
+    "aluminium": {"density": 2.78, "price_kg": 2000, "name": "Алюминий Д16Т"},
+    "brass":     {"density": 8.45, "price_kg": 2000, "name": "Латунь ЛС59-1"},
+    "bronze":    {"density": 7.65, "price_kg": 2000, "name": "Бронза БрАЖ9-4"},
+    "steel":     {"density": 7.85, "price_kg": 100,  "name": "Сталь 45"},
+}
+_STD_D = [6,8,10,12,14,16,18,20,22,25,28,30,32,35,40,45,50,55,60,65,70,80,90,100]
+_MACHINE_RATES = {"lathe": 3500, "bench": 1800}
+_VAT = 1.22
+_MARGIN = 0.60   # 60% наценка на себестоимость
+
+
+@app.get("/api/calc")
+def api_calc(
+    material: str  = "aluminium",
+    d_out:    float = 20.0,
+    length:   float = 30.0,
+    d_hole:   float = 0.0,
+    complex_:  int  = 1,       # 1=simple, 2=stepped, 3=with_threads
+):
+    """
+    Быстрый расчёт ориентировочной цены.
+    complex_: 1 — простая, 2 — ступенчатая, 3 — с резьбами/рад.отв.
+    """
+    mat = _MATS.get(material, _MATS["aluminium"])
+
+    # ── Заготовка ────────────────────────────────────────────────────────────
+    needed_d = d_out + 4.0
+    blank_d  = next((x for x in _STD_D if x >= needed_d), _STD_D[-1])
+    blank_l  = length + 10.0
+
+    import math
+    V_blank = math.pi / 4 * (blank_d / 10) ** 2 * (blank_l / 10)   # cm³
+    m_blank  = V_blank * mat["density"]                              # g
+    mat_cost = m_blank / 1000 * mat["price_kg"]                      # ₽
+
+    # КИМ — масса детали / масса заготовки
+    if d_hole > 0:
+        V_hole = math.pi / 4 * (d_hole / 10) ** 2 * (length / 10)
+        V_part = math.pi / 4 * (d_out / 10) ** 2 * (length / 10) - V_hole
+    else:
+        V_part = math.pi / 4 * (d_out / 10) ** 2 * (length / 10)
+    m_part = V_part * mat["density"]
+    kim     = round(m_part / m_blank, 2) if m_blank > 0 else 0
+
+    # ── Нормы времени ────────────────────────────────────────────────────────
+    t_lathe = {1: 3.0, 2: 5.0, 3: 8.0}.get(complex_, 3.0)   # мин
+    t_bench  = {1: 0.5, 2: 0.5, 3: 5.0}.get(complex_, 0.5)  # мин
+    t_ctrl   = 5.0                                             # мин
+
+    op_cost_lathe = t_lathe / 60 * _MACHINE_RATES["lathe"]
+    op_cost_bench  = t_bench / 60 * _MACHINE_RATES["bench"]
+    op_cost_ctrl   = t_ctrl  / 60 * _MACHINE_RATES["bench"]
+
+    # ── Тиражи ───────────────────────────────────────────────────────────────
+    qtys    = [1, 10, 50, 100, 500, 1000]
+    setup_h  = {1: 0.5, 10: 0.5, 50: 0.5, 100: 1.0, 500: 1.0, 1000: 1.0}
+    tiers = []
+    for q in qtys:
+        setup_cost = setup_h.get(q, 1.0) * _MACHINE_RATES["lathe"] / q
+        cost_per   = mat_cost + setup_cost + op_cost_lathe + op_cost_bench + op_cost_ctrl
+        price_net  = round(cost_per * (1 + _MARGIN / (1 - _MARGIN)), 0)
+        price_vat  = round(price_net * _VAT, 0)
+        tiers.append({
+            "qty":        q,
+            "cost":       round(cost_per, 0),
+            "price_net":  price_net,
+            "price_vat":  price_vat,
+        })
+
+    return {
+        "material":    mat["name"],
+        "blank_d":     blank_d,
+        "blank_l":     round(blank_l, 0),
+        "blank_mass_g": round(m_blank, 1),
+        "part_mass_g":  round(m_part, 1),
+        "kim":          kim,
+        "mat_cost":    round(mat_cost, 0),
+        "tiers":        tiers,
+        "vat_rate":    _VAT,
+    }
+
+
 # ── Static ────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
@@ -575,6 +728,20 @@ def root():
 def contact_html():
     return FileResponse(
         WEBAPP_DIR / "contact.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
+@app.get("/docs.html")
+def docs_html():
+    return FileResponse(
+        WEBAPP_DIR / "docs.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
+@app.get("/calc.html")
+def calc_html():
+    return FileResponse(
+        WEBAPP_DIR / "calc.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
     )
 
