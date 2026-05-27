@@ -570,21 +570,31 @@ _BAD_URL_KW = [
 ]
 
 
+# CDN-хосты которые могут отдавать изображения без явного расширения в URL
+_CDN_IMAGE_HOSTS = (
+    "static.tildacdn.com", "img.tildacdn.com",
+    "cdn.wixstatic.com", "images.squarespace-cdn.com",
+    "media.bitrix24.ru",
+)
+
+
 def _is_likely_photo(url: str, ctx: str = "") -> bool:
     """Эвристика: не иконка, не логотип, не изображение из раздела партнёров."""
     low = url.lower()
-    # Расширение
-    path = urlparse(low).path
-    ext = Path(path).suffix.lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
-        return False
-    # Плохие URL-паттерны
+    # Плохие URL-паттерны (проверяем до расширения — быстрее)
     if any(kw in low for kw in _BAD_URL_KW):
         return False
     # Плохой раздел страницы
     ctx_low = ctx.lower()
     if any(kw in ctx_low for kw in _BAD_SECTION_KW):
         return False
+    # Расширение
+    path = urlparse(low).path
+    ext = Path(path).suffix.lower()
+    # Для известных CDN-хостов разрешаем URL без расширения — MIME определим при скачивании
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        if not any(cdn in low for cdn in _CDN_IMAGE_HOSTS):
+            return False
     return True
 
 
@@ -760,7 +770,9 @@ class SiteParser:
             await _progress(f"📥 Скачиваю фото ({min(len(img_candidates), MAX_IMAGES)} шт.)...")
             # _download_images ожидает (url, alt) — берём первые два элемента
             downloaded = await SiteParser._download_images(
-                [(u, a) for u, a, *_ in img_candidates], result.company_name
+                [(u, a) for u, a, *_ in img_candidates],
+                result.company_name,
+                source_url=result.url,
             )
             result.images = downloaded
             await _progress(f"✅ Сохранено {len(downloaded)} фото")
@@ -1066,11 +1078,18 @@ class SiteParser:
     async def _download_images(
         candidates: list[tuple[str, str]],
         company_name: str,
+        source_url: str = "",
     ) -> list[ParsedImage]:
         """Скачивает до MAX_IMAGES фото, сохраняет на диск."""
         folder_name = _slugify(company_name)
         save_dir = IMAGES_DIR / folder_name
         save_dir.mkdir(parents=True, exist_ok=True)
+
+        # Определяем Referer: корень сайта-источника
+        referer = ""
+        if source_url:
+            p = urlparse(source_url)
+            referer = f"{p.scheme}://{p.netloc}/"
 
         results: list[ParsedImage] = []
         try:
@@ -1083,7 +1102,7 @@ class SiteParser:
             connector=connector, headers=HEADERS, timeout=REQUEST_TIMEOUT
         ) as session:
             tasks = [
-                SiteParser._download_one(session, url, alt, save_dir, folder_name)
+                SiteParser._download_one(session, url, alt, save_dir, folder_name, referer)
                 for url, alt in candidates[:MAX_IMAGES * 2]  # берём с запасом
             ]
             for coro in asyncio.as_completed(tasks):
@@ -1105,67 +1124,101 @@ class SiteParser:
         alt: str,
         save_dir: Path,
         folder_name: str,
+        referer: str = "",
     ) -> Optional[ParsedImage]:
-        """Скачивает одно изображение, проверяет размер и тип."""
-        try:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                if resp.status != 200:
-                    return None
+        """Скачивает одно изображение, проверяет размер и тип.
 
-                # Проверяем Content-Type
-                ct = resp.headers.get("Content-Type", "")
-                mime = ct.split(";")[0].strip().lower()
+        Для CDN-ресурсов (Tilda, WIX и др.) добавляет Referer заголовок.
+        При таймауте делает одну повторную попытку с увеличенным timeout.
+        """
+        # CDN-домены, которые требуют Referer и иногда медленно отвечают
+        _CDN_HOSTS = ("static.tildacdn.com", "tildacdn.com", "cdn.wixstatic.com",
+                      "img.tildacdn.com")
+        is_cdn = any(h in url for h in _CDN_HOSTS)
+        per_image_timeout = 30 if is_cdn else 15
 
-                # Если MIME неизвестен — угадываем по URL
-                if mime not in ALLOWED_MIME:
-                    guessed, _ = mimetypes.guess_type(url)
-                    if guessed in ALLOWED_MIME:
-                        mime = guessed
-                    else:
+        # Заголовки запроса: добавляем Referer если он передан
+        extra_headers: dict = {}
+        if referer:
+            extra_headers["Referer"] = referer
+            extra_headers["Origin"] = referer.rstrip("/")
+
+        async def _fetch(timeout_sec: int) -> Optional[ParsedImage]:
+            try:
+                async with session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=timeout_sec),
+                    headers=extra_headers or None,
+                ) as resp:
+                    if resp.status != 200:
+                        logger.debug("[parser] HTTP %s для фото: %s", resp.status, url)
                         return None
 
-                # Читаем с ограничением размера
-                chunks = []
-                total = 0
-                async for chunk in resp.content.iter_chunked(65536):
-                    total += len(chunk)
-                    if total > MAX_IMAGE_SIZE:
-                        logger.debug("[parser] Фото слишком большое: %s", url)
-                        return None
-                    chunks.append(chunk)
+                    # Проверяем Content-Type
+                    ct = resp.headers.get("Content-Type", "")
+                    mime = ct.split(";")[0].strip().lower()
 
-                data = b"".join(chunks)
-                if len(data) < MIN_IMAGE_SIZE:
-                    return None  # иконка
+                    # Если MIME неизвестен — угадываем по URL
+                    if mime not in ALLOWED_MIME:
+                        guessed, _ = mimetypes.guess_type(url)
+                        if guessed in ALLOWED_MIME:
+                            mime = guessed
+                        else:
+                            return None
 
-                # Определяем расширение
-                ext_map = {
-                    "image/jpeg": ".jpg",
-                    "image/png":  ".png",
-                    "image/webp": ".webp",
-                }
-                ext = ext_map.get(mime, ".jpg")
+                    # Читаем с ограничением размера
+                    chunks = []
+                    total = 0
+                    async for chunk in resp.content.iter_chunked(65536):
+                        total += len(chunk)
+                        if total > MAX_IMAGE_SIZE:
+                            logger.debug("[parser] Фото слишком большое: %s", url)
+                            return None
+                        chunks.append(chunk)
 
-                # Имя файла = хэш URL (избегаем дублей)
-                fname = hashlib.md5(url.encode()).hexdigest()[:12] + ext
-                fpath = save_dir / fname
+                    data = b"".join(chunks)
+                    if len(data) < MIN_IMAGE_SIZE:
+                        return None  # иконка
 
-                fpath.write_bytes(data)
+                    # Определяем расширение
+                    ext_map = {
+                        "image/jpeg": ".jpg",
+                        "image/png":  ".png",
+                        "image/webp": ".webp",
+                    }
+                    ext = ext_map.get(mime, ".jpg")
 
-                local_path = f"/static/images/{folder_name}/{fname}"
-                return ParsedImage(
-                    url=url,
-                    local_path=local_path,
-                    alt=alt,
-                    size_bytes=len(data),
-                )
+                    # Имя файла = хэш URL (избегаем дублей)
+                    fname = hashlib.md5(url.encode()).hexdigest()[:12] + ext
+                    fpath = save_dir / fname
 
-        except asyncio.TimeoutError:
-            logger.debug("[parser] Timeout для фото: %s", url)
-            return None
-        except Exception as e:
-            logger.debug("[parser] Ошибка фото %s: %s", url, e)
-            return None
+                    fpath.write_bytes(data)
+
+                    local_path = f"/static/images/{folder_name}/{fname}"
+                    return ParsedImage(
+                        url=url,
+                        local_path=local_path,
+                        alt=alt,
+                        size_bytes=len(data),
+                    )
+
+            except asyncio.TimeoutError:
+                return None
+            except Exception as e:
+                logger.debug("[parser] Ошибка фото %s: %s", url, e)
+                return None
+
+        # Первая попытка
+        result = await _fetch(per_image_timeout)
+        if result is not None:
+            return result
+
+        # Повторная попытка для CDN — с удвоенным таймаутом и без лишних заголовков
+        if is_cdn:
+            logger.debug("[parser] CDN retry: %s", url)
+            result = await _fetch(per_image_timeout * 2)
+
+        return result
 
 
 # ── Сохранение в Google Sheets ────────────────────────────────────────────────
