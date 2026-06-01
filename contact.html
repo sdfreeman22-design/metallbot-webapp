@@ -557,6 +557,10 @@ document.querySelectorAll('.chip').forEach(function(ch){
     document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
     ch.classList.add('on');
     aK=ch.dataset.k;
+    // Сброс фильтра операций при смене типа
+    opQ='';
+    const opsAll=document.querySelector('#ops-row .chip[data-op=""]');
+    if(opsAll) opsAll.classList.add('on');
     render();
   });
 });
