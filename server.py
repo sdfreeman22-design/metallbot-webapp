@@ -187,10 +187,8 @@ def _parsed_data() -> dict[str, dict]:
 
 
 def _load_contacts() -> list[dict]:
-    coop_list = [_row_to_contact(r, "coop")
-                 for r in _sheet_rows("Кооперация") if _row_to_contact(r, "coop")["name"]]
-    supp_list = [_row_to_contact(r, "supplier")
-                 for r in _sheet_rows("Поставщики") if _row_to_contact(r, "supplier")["name"]]
+    coop_list = [c for c in (_row_to_contact(r, "coop") for r in _sheet_rows("Кооперация")) if c["name"]]
+    supp_list = [c for c in (_row_to_contact(r, "supplier") for r in _sheet_rows("Поставщики")) if c["name"]]
 
     coop_map = {_norm(c["name"]): c for c in coop_list}
     supp_map = {_norm(c["name"]): c for c in supp_list}
@@ -268,7 +266,10 @@ def api_contacts(q: str = "", kind: str = ""):
                  or n in x["materials"].lower()
                  or n in x["equipment"].lower()
                  or n in x["specialization"].lower()
-                 or n in x["notes"].lower()]
+                 or n in x["notes"].lower()
+                 or n in (x.get("email") or "").lower()
+                 or n in (x.get("phone") or "").lower()
+                 or n in (x.get("contact") or "").lower()]
     items.sort(key=_sort_key)
     return {"items": items, "total": len(items)}
 
