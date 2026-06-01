@@ -266,7 +266,9 @@ def api_contacts(q: str = "", kind: str = ""):
                  or n in x["city"].lower()
                  or n in x["service"].lower()
                  or n in x["materials"].lower()
-                 or n in x["equipment"].lower()]
+                 or n in x["equipment"].lower()
+                 or n in x["specialization"].lower()
+                 or n in x["notes"].lower()]
     items.sort(key=_sort_key)
     return {"items": items, "total": len(items)}
 
@@ -493,6 +495,46 @@ def api_contact_delete(contact_id: str):
         raise HTTPException(404, f"Компания не найдена: {contact_id}")
 
     return {"ok": True, "deleted_from": deleted_from, "name": contact_id}
+
+
+@app.get("/api/operations")
+def api_operations():
+    """
+    Возвращает топ операций по базе кооператоров для фильтр-чипов в Mini App.
+    Парсит поля Виды_работ, Услуги_парс, Специализация, Оборудование.
+    """
+    import re as _re
+    # Ключевые операции — в том же порядке что в боте (_OP_KW)
+    OP_KEYS = [
+        ("Токарная",         ["токарн", "токарк", "lathe"]),
+        ("Фрезерная",        ["фрезер", "фрезеровк", "фрезерн", "milling"]),
+        ("Шлифовальная",     ["шлифов", "шлифовк", "grinding"]),
+        ("Термообработка",   ["термо", "закалк", "отжиг", "улучшение", "heat"]),
+        ("Покрытие",         ["покрыт", "гальван", "цинков", "хромиров", "никелир", "анодир"]),
+        ("Сварка",           ["сварк", "сварочн", "welding"]),
+        ("Лазерная резка",   ["лазерн", "laser"]),
+        ("Штамповка",        ["штамп", "прессов", "stamp"]),
+        ("Литьё",            ["литьё", "литья", "литейн", "casting"]),
+        ("Слесарная",        ["слесарн", "слесарк"]),
+        ("Электроэрозионная",["эрозионн", "электроэроз", "wire", "edm"]),
+    ]
+    contacts = _load_contacts()
+    coops = [c for c in contacts if c["kind"] in ("coop", "both")]
+    counts: dict[str, int] = {}
+    for op_label, kws in OP_KEYS:
+        cnt = 0
+        for c in coops:
+            text = " ".join([
+                c.get("service", ""), c.get("equipment", ""),
+                c.get("specialization", ""), c.get("materials", ""), c.get("notes", "")
+            ]).lower()
+            if any(kw in text for kw in kws):
+                cnt += 1
+        if cnt > 0:
+            counts[op_label] = cnt
+    # Сортируем по убыванию
+    result = [{"op": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: -x[1])]
+    return {"operations": result}
 
 
 @app.get("/api/stats")

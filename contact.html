@@ -170,6 +170,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
   <div id="ptr">↓ обновить</div>
   <div class="sw"><input class="si" id="si" type="search" placeholder="Поиск контрагента..." autocomplete="off"></div>
   <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span></div>
+  <div class="fl" id="ops-row" style="padding-top:2px"></div>
   <div id="list"></div>
   <div id="det"></div>
   <!-- lightbox -->
@@ -338,6 +339,31 @@ function mkTags(c){
 function skL(n=6){return Array.from({length:n},()=>'<div class="skc"><div style="flex:1"><div class="sk sk-l w7"></div><div class="sk sk-l w4"></div></div></div>').join('')}
 function skD(){return'<div class="dsk"><div class="dsk-h"><div class="sk sk-l w7" style="height:18px;margin-bottom:10px"></div><div class="sk sk-l w4"></div></div><div class="dsk-s"><div class="sk dsk-st"></div><div class="sk dsk-st"></div><div class="sk dsk-st"></div></div><div class="sk dsk-b"></div><div class="sk dsk-b" style="height:100px"></div></div>'}
 
+// ── Операционные чипы ─────────────────────────────────────────────────────
+let opQ = ''; // текущий фильтр по операции
+async function loadOps(){
+  try{
+    const r = await fetch('/api/operations');
+    if(!r.ok) return;
+    const d = await r.json();
+    const row = $('ops-row');
+    if(!row || !d.operations || !d.operations.length) return;
+    // Сбросить фильтр
+    let html = '<span class="chip on" data-op="" onclick="setOp(this,\'\')">⊙ Все операции</span>';
+    for(const {op, count} of d.operations.slice(0, 8)){
+      html += `<span class="chip" data-op="${E(op)}" onclick="setOp(this,'${E(op)}')">${E(op)} <span style="opacity:.5">${count}</span></span>`;
+    }
+    row.innerHTML = html;
+  }catch(e){}
+}
+function setOp(el, op){
+  opQ = op.toLowerCase();
+  // Обновляем активный чип
+  document.querySelectorAll('#ops-row .chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  render();
+}
+
 // ── Load contacts ──────────────────────────────────────────────────────────
 async function load(){
   $('list').innerHTML = skL();
@@ -352,6 +378,7 @@ async function load(){
   }
   $('hc').textContent = A.length;
   render();
+  loadOps();
 }
 
 // ── Render list ────────────────────────────────────────────────────────────
@@ -359,7 +386,12 @@ function render(){
   const q=sQ.toLowerCase();
   const f=A.filter(c=>{
     if(aK && c.kind!==aK) return false;
-    return !q || [c.name,c.city,c.specialization,c.service,c.materials].some(s=>(s||'').toLowerCase().includes(q));
+    // Фильтр по операции (чип)
+    if(opQ){
+      const txt=[c.service,c.equipment,c.specialization,c.materials,c.notes].join(' ').toLowerCase();
+      if(!txt.includes(opQ)) return false;
+    }
+    return !q || [c.name,c.city,c.specialization,c.service,c.materials,c.equipment,c.notes].some(s=>(s||'').toLowerCase().includes(q));
   });
   const el=$('list');
   if(!f.length){
@@ -375,10 +407,13 @@ function render(){
     const badge=isOwn?'<div class="vip-badge own">✦ НАШЕ ПРЕДПРИЯТИЕ</div>'
                 :isVip?'<div class="vip-badge vip">★ VIP-ПАРТНЁР</div>':'';
     const cardCls='card'+(isOwn?' vip-own':isVip?' vip-partner':'');
+    // Индикатор: нет email — предупреждение в правом углу
+    const noEmail=!c.email;
+    const emailWarn=noEmail?'<div style="font-family:var(--mono);font-size:7px;color:rgba(255,176,64,.7);margin-top:4px;letter-spacing:.5px">⚠ нет email</div>':'';
     return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
       +'<div class="cb">'+badge+'<div class="cn">'+E(c.name)+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
-      +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+'</div>'
+      +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+emailWarn+'</div>'
       +'</div>';
   }).join('');
 }
