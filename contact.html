@@ -208,6 +208,14 @@ function isAdmin(){
   }catch(e){ return false; }
 }
 
+// Заголовок авторизации Mini App: подписанный Telegram initData.
+// Сервер проверяет подпись (HMAC от токена бота) на изменяющих запросах.
+function authHeaders(extra){
+  const h = Object.assign({}, extra||{});
+  try{ if(tg?.initData) h['X-Telegram-Init-Data'] = tg.initData; }catch(e){}
+  return h;
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let A=[], aK='', sQ='';
 const $=id=>document.getElementById(id);
@@ -596,7 +604,7 @@ async function dlC(){
   if(!ok) return;
   haptic('heavy');
   try{
-    const r=await fetch('/api/contact/'+encodeURIComponent(c.name),{method:'DELETE'});
+    const r=await fetch('/api/contact/'+encodeURIComponent(c.name),{method:'DELETE',headers:authHeaders()});
     const data=await r.json();
     if(!r.ok) throw new Error(data.detail||'Ошибка');
     hapticNotify('success');
@@ -650,7 +658,7 @@ async function svC(){
   try{
     const r=await fetch('/api/contact/'+encodeURIComponent(c.name),{
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      headers:authHeaders({'Content-Type':'application/json'}),
       body:JSON.stringify(body)
     });
     if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'HTTP '+r.status)}

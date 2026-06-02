@@ -30,6 +30,13 @@ from bs4 import BeautifulSoup, Comment
 from google.oauth2.service_account import Credentials
 
 logger = logging.getLogger("metallbot.parser")
+
+# Проверка SSL-сертификатов при парсинге сайтов. По умолчанию выключена —
+# у части мелких сайтов кооператоров просроченные/самоподписанные сертификаты,
+# и включение проверки уронит их парсинг. Чтобы включить (безопаснее против
+# MITM) — задать переменную окружения PARSER_VERIFY_SSL=1.
+_PARSER_SSL = os.getenv("PARSER_VERIFY_SSL", "").strip().lower() in ("1", "true", "yes")
+
 def _normalize_phone(p: str) -> str:
     """Нормализует телефон до +7 (XXX) XXX-XX-XX, извлекая только цифры."""
     if not p:
@@ -793,10 +800,10 @@ class SiteParser:
         # Используем Google DNS (8.8.8.8) — обходит блокировки VPN/корп. DNS
         try:
             resolver = aiohttp.AsyncResolver(nameservers=["8.8.8.8", "8.8.4.4", "1.1.1.1"])
-            connector = aiohttp.TCPConnector(ssl=False, resolver=resolver)
+            connector = aiohttp.TCPConnector(ssl=_PARSER_SSL, resolver=resolver)
         except Exception:
             # Если aiodns недоступен — стандартный коннектор
-            connector = aiohttp.TCPConnector(ssl=False)
+            connector = aiohttp.TCPConnector(ssl=_PARSER_SSL)
 
         async with aiohttp.ClientSession(
             connector=connector,
@@ -871,7 +878,7 @@ class SiteParser:
         SKIP_DOMAINS = ("sentry.io", "example.com", "test.com", "wixpress.com", "googleapis")
 
         try:
-            connector = aiohttp.TCPConnector(ssl=False)
+            connector = aiohttp.TCPConnector(ssl=_PARSER_SSL)
             async with aiohttp.ClientSession(
                 connector=connector, headers=HEADERS,
                 timeout=aiohttp.ClientTimeout(total=10)
@@ -1094,9 +1101,9 @@ class SiteParser:
         results: list[ParsedImage] = []
         try:
             resolver = aiohttp.AsyncResolver(nameservers=["8.8.8.8", "8.8.4.4", "1.1.1.1"])
-            connector = aiohttp.TCPConnector(ssl=False, limit=5, resolver=resolver)
+            connector = aiohttp.TCPConnector(ssl=_PARSER_SSL, limit=5, resolver=resolver)
         except Exception:
-            connector = aiohttp.TCPConnector(ssl=False, limit=5)
+            connector = aiohttp.TCPConnector(ssl=_PARSER_SSL, limit=5)
 
         async with aiohttp.ClientSession(
             connector=connector, headers=HEADERS, timeout=REQUEST_TIMEOUT

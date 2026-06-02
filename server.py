@@ -40,9 +40,101 @@ from pydantic import BaseModel
 from typing import Optional
 
 app = FastAPI(title="METALLBOT Mini App")
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# Mini App открывается из того же origin (этот сервер отдаёт и HTML, и API),
+# поэтому широкий "*" не нужен. Сужаем до известных доменов; список можно
+# переопределить переменной окружения CORS_ORIGINS (через запятую) или "*".
+_DEFAULT_ORIGINS = [
+    "https://metallbot-webapp.onrender.com",
+    "https://mt073.ru",
+    "https://soyuzprom.tech",
+    "http://localhost:8765",
+    "http://127.0.0.1:8765",
+]
+_cors_env = os.getenv("CORS_ORIGINS", "").strip()
+if _cors_env == "*":
+    _cors_origins = ["*"]
+elif _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = _DEFAULT_ORIGINS
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
 )
+logger.info("CORS origins: %s", _cors_origins)
+
+# ── Авторизация Mini App (Telegram initData, HMAC-SHA256 от токена бота) ───────
+import hashlib as _hashlib
+import hmac as _hmac
+from urllib.parse import parse_qsl as _parse_qsl
+from fastapi import Header, Depends
+
+_BOT_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
+
+def _load_allowed_ids() -> set:
+    """ID Telegram, которым разрешены изменения (админы + менеджеры из users.json)."""
+    ids: set = set()
+    try:
+        uj = ROOT_DIR / "users.json"
+        if uj.exists():
+            data = json.loads(uj.read_text(encoding="utf-8"))
+            for key in ("admins", "managers"):
+                for v in (data.get(key) or []):
+                    try:
+                        ids.add(int(v))
+                    except (ValueError, TypeError):
+                        pass
+    except Exception as e:
+        logger.warning("[auth] users.json: %s", e)
+    return ids
+
+def _verify_init_data(init_data: str) -> Optional[dict]:
+    """Проверяет подпись Telegram WebApp initData. Возвращает данные пользователя
+    при валидной подписи, иначе None. Алгоритм — официальный (HMAC-SHA256,
+    секрет = HMAC('WebAppData', bot_token))."""
+    if not init_data or not _BOT_TOKEN:
+        return None
+    try:
+        pairs = dict(_parse_qsl(init_data, keep_blank_values=True))
+        recv_hash = pairs.pop("hash", None)
+        if not recv_hash:
+            return None
+        check_string = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
+        secret = _hmac.new(b"WebAppData", _BOT_TOKEN.encode(), _hashlib.sha256).digest()
+        calc_hash = _hmac.new(secret, check_string.encode(), _hashlib.sha256).hexdigest()
+        if not _hmac.compare_digest(calc_hash, recv_hash):
+            return None
+        user = pairs.get("user")
+        return json.loads(user) if user else {}
+    except Exception as e:
+        logger.warning("[auth] verify: %s", e)
+        return None
+
+def require_manager(x_telegram_init_data: str = Header(default="")) -> dict:
+    """FastAPI-зависимость для защиты изменяющих эндпоинтов (PUT/DELETE).
+
+    Поэтапное включение без риска сломать продакшен:
+      • TELEGRAM_TOKEN НЕ задан в окружении  → пропускаем (предупреждение в лог),
+        поведение прежнее. Чтобы включить защиту — задать TELEGRAM_TOKEN на Render.
+      • TELEGRAM_TOKEN задан → требуем валидный initData; id пользователя должен
+        быть в users.json (admins/managers). Иначе 401/403.
+    """
+    if not _BOT_TOKEN:
+        logger.warning("[auth] TELEGRAM_TOKEN не задан — изменения БЕЗ авторизации "
+                       "(задайте TELEGRAM_TOKEN на Render, чтобы включить защиту)")
+        return {"_unverified": True}
+    user = _verify_init_data(x_telegram_init_data)
+    if user is None:
+        raise HTTPException(401, "Требуется авторизация Telegram (initData)")
+    allowed = _load_allowed_ids()
+    uid = user.get("id")
+    if allowed and uid not in allowed:
+        raise HTTPException(403, "Нет прав на изменение базы")
+    return user
 
 # Раздаём скачанные фото партнёров
 STATIC_DIR = WEBAPP_DIR / "static"
@@ -373,7 +465,7 @@ def api_cache_bust(sheets: list[str] = None):
     return {"ok": True}
 
 @app.put("/api/contact/{contact_id:path}")
-def api_contact_update(contact_id: str, body: ContactUpdate):
+def api_contact_update(contact_id: str, body: ContactUpdate, _auth: dict = Depends(require_manager)):
     """Обновляет поля компании в Google Sheets."""
     import gspread as _gs
 
@@ -447,7 +539,7 @@ def api_contact_update(contact_id: str, body: ContactUpdate):
 
 
 @app.delete("/api/contact/{contact_id:path}")
-def api_contact_delete(contact_id: str):
+def api_contact_delete(contact_id: str, _auth: dict = Depends(require_manager)):
     """Удаляет компанию из всех листов Google Sheets (Кооперация, Поставщики, Парсинг)."""
     ss = _get_spreadsheet()
     deleted_from: list[str] = []
@@ -561,6 +653,27 @@ def api_cache_clear():
     logger.info("Кэш сброшен")
     return {"ok": True, "cleared": True}
 
+_IMG_MAX_BYTES = 10 * 1024 * 1024  # 10 МБ — потолок размера проксируемой картинки
+
+def _is_public_host(host: str) -> bool:
+    """SSRF-защита: хост не должен резолвиться в приватный/локальный/служебный IP
+    (защищает от запросов прокси к внутренним сервисам)."""
+    import socket, ipaddress
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return False
+    for info in infos:
+        ip = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+        if (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+            return False
+    return True
+
 @app.get("/api/img")
 async def api_img_proxy(url: str):
     """Проксирует изображение с сайта партнёра — обходит CORS и hotlink-защиту."""
@@ -568,26 +681,45 @@ async def api_img_proxy(url: str):
     from fastapi.responses import StreamingResponse
     from urllib.parse import urlparse
 
-    # Базовая защита — только картинки
+    parsed = urlparse(url)
+    # Только http/https и только картинки
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(400, "Недопустимый URL")
     allowed_ext = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-    path = urlparse(url).path.lower()
+    path = parsed.path.lower()
     if not any(path.endswith(e) for e in allowed_ext):
         raise HTTPException(400, "Только изображения")
+    # SSRF-защита: запрет приватных/локальных адресов
+    if not _is_public_host(parsed.hostname or ""):
+        raise HTTPException(400, "Недопустимый адрес источника")
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "image/*,*/*;q=0.8",
-        "Referer": f"{urlparse(url).scheme}://{urlparse(url).netloc}/",
+        "Referer": f"{parsed.scheme}://{parsed.netloc}/",
     }
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=15,
                                      verify=False) as client:
-            r = await client.get(url, headers=headers)
-            if r.status_code != 200:
-                raise HTTPException(502, f"Источник вернул {r.status_code}")
-            ct = r.headers.get("content-type", "image/jpeg")
+            async with client.stream("GET", url, headers=headers) as r:
+                if r.status_code != 200:
+                    raise HTTPException(502, f"Источник вернул {r.status_code}")
+                ct = r.headers.get("content-type", "image/jpeg")
+                if not ct.startswith("image/"):
+                    raise HTTPException(415, "Источник вернул не изображение")
+                clen = r.headers.get("content-length")
+                if clen and clen.isdigit() and int(clen) > _IMG_MAX_BYTES:
+                    raise HTTPException(413, "Изображение слишком большое")
+                # Читаем с ограничением размера
+                chunks = []
+                total = 0
+                async for chunk in r.aiter_bytes():
+                    total += len(chunk)
+                    if total > _IMG_MAX_BYTES:
+                        raise HTTPException(413, "Изображение слишком большое")
+                    chunks.append(chunk)
             return StreamingResponse(
-                iter([r.content]),
+                iter([b"".join(chunks)]),
                 media_type=ct,
                 headers={"Cache-Control": "public, max-age=86400"},
             )
