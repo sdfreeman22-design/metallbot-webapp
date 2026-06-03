@@ -225,23 +225,37 @@ function r2(n){ return Math.round(n*100)/100; }
 function massStr(g){ return g>=1000 ? r2(g/1000).toLocaleString("ru-RU")+' кг' : Math.round(g)+' г'; }
 var PI=Math.PI;
 
-/* ────────── материалы → марки (плотность г/см³, средняя цена ₽/кг) ──────────
-   * — цены ПРЕДВАРИТЕЛЬНЫЕ (медь, титан, часть нержи), уточнить у владельца      */
+/* ────────── материалы → марки (плотность г/см³, средняя цена ₽/кг с НДС) ──────────
+   Цветмет (алюминий, латунь, бронза, медь) = 1500 ₽/кг с НДС (владелец 2026-06-03).
+   Сталь/нержа — по якорям; титан/чугун/часть марок стали — ориентир, уточнить.     */
 var MATERIALS={
   aluminium:{name:'Алюминий', grades:[
-    {g:'Д16Т',dens:2.78,price:2000},{g:'В95Т',dens:2.85,price:2000},{g:'АМг6',dens:2.64,price:2000},{g:'АМг5',dens:2.65,price:2000},{g:'АД31',dens:2.71,price:2000}]},
+    {g:'Д16Т',dens:2.78,price:1500},{g:'Д16',dens:2.78,price:1500},{g:'В95Т',dens:2.85,price:1500},
+    {g:'АМг6',dens:2.64,price:1500},{g:'АМг5',dens:2.65,price:1500},{g:'АМг3',dens:2.67,price:1500},
+    {g:'АМц',dens:2.73,price:1500},{g:'АД31',dens:2.71,price:1500},{g:'АД0',dens:2.71,price:1500},{g:'АК4',dens:2.78,price:1500}]},
   brass:{name:'Латунь', grades:[
-    {g:'ЛС59-1',dens:8.50,price:2000},{g:'Л63',dens:8.44,price:2000},{g:'Л68',dens:8.50,price:2000}]},
+    {g:'ЛС59-1',dens:8.50,price:1500},{g:'Л63',dens:8.44,price:1500},{g:'Л68',dens:8.50,price:1500},
+    {g:'ЛЖМц59-1-1',dens:8.50,price:1500},{g:'ЛО62-1',dens:8.45,price:1500},{g:'Л90',dens:8.78,price:1500}]},
   bronze:{name:'Бронза', grades:[
-    {g:'БрАЖ9-4',dens:7.60,price:2000},{g:'БрОЦС5-5-5',dens:8.80,price:2000},{g:'БрБ2',dens:8.20,price:2000}]},
-  steel:{name:'Сталь', grades:[
-    {g:'Сталь 45',dens:7.85,price:100},{g:'Ст3',dens:7.85,price:100},{g:'40Х',dens:7.85,price:200},{g:'30ХГСА',dens:7.85,price:200},{g:'У8А',dens:7.81,price:300},{g:'38Х2МЮА',dens:7.85,price:600}]},
-  inox:{name:'Нержавейка', grades:[
-    {g:'12Х18Н10Т',dens:7.93,price:600},{g:'08Х18Н10',dens:7.90,price:600},{g:'10Х17Н13М2Т',dens:8.00,price:700},{g:'20Х13',dens:7.70,price:500},{g:'40Х13',dens:7.70,price:500}]},
+    {g:'БрАЖ9-4',dens:7.60,price:1500},{g:'БрОЦС5-5-5',dens:8.80,price:1500},{g:'БрОФ6.5-0.15',dens:8.80,price:1500},
+    {g:'БрБ2',dens:8.20,price:1500},{g:'БрАМц9-2',dens:7.60,price:1500},{g:'БрКМц3-1',dens:8.40,price:1500}]},
   copper:{name:'Медь', grades:[
-    {g:'М1',dens:8.90,price:900},{g:'М2',dens:8.90,price:900},{g:'М3',dens:8.94,price:900}]},
+    {g:'М1',dens:8.90,price:1500},{g:'М2',dens:8.90,price:1500},{g:'М3',dens:8.94,price:1500},{g:'М0',dens:8.94,price:1500}]},
+  steel:{name:'Сталь', grades:[
+    {g:'Ст3',dens:7.85,price:100},{g:'Ст20',dens:7.85,price:100},{g:'Сталь 45',dens:7.85,price:100},
+    {g:'40Х',dens:7.85,price:200},{g:'30ХГСА',dens:7.85,price:200},{g:'09Г2С',dens:7.85,price:120},
+    {g:'65Г',dens:7.85,price:150},{g:'У8А',dens:7.81,price:300},{g:'ХВГ',dens:7.83,price:350},
+    {g:'Х12МФ',dens:7.70,price:400},{g:'38Х2МЮА',dens:7.85,price:600}]},
+  inox:{name:'Нержавейка', grades:[
+    {g:'12Х18Н10Т',dens:7.93,price:600},{g:'08Х18Н10',dens:7.90,price:600},{g:'10Х17Н13М2Т',dens:8.00,price:700},
+    {g:'03Х17Н14М3',dens:8.00,price:750},{g:'12Х13',dens:7.72,price:480},{g:'20Х13',dens:7.70,price:500},
+    {g:'30Х13',dens:7.76,price:500},{g:'40Х13',dens:7.70,price:500},{g:'14Х17Н2',dens:7.75,price:550}]},
   titanium:{name:'Титан', grades:[
-    {g:'ВТ1-0',dens:4.50,price:3500},{g:'ВТ6',dens:4.43,price:4500},{g:'ОТ4',dens:4.55,price:4000}]}
+    {g:'ВТ1-0',dens:4.50,price:4500},{g:'ВТ1-00',dens:4.50,price:4500},{g:'ВТ6',dens:4.43,price:4500},
+    {g:'ВТ20',dens:4.45,price:4500},{g:'ОТ4',dens:4.55,price:4500},{g:'ПТ3В',dens:4.50,price:4500}]},
+  castiron:{name:'Чугун', grades:[
+    {g:'СЧ20',dens:7.10,price:300},{g:'СЧ25',dens:7.20,price:300},{g:'СЧ30',dens:7.25,price:300},
+    {g:'ВЧ50',dens:7.20,price:300},{g:'ВЧ60',dens:7.20,price:300},{g:'КЧ35',dens:7.30,price:300}]}
 };
 var curMat="steel",curGrade=0,curProf="round",revMode=false;
 
