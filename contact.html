@@ -387,6 +387,22 @@ async function load(){
   $('hc').textContent = A.length;
   render();
   loadOps();
+  applyDeepLink();
+}
+
+// ── Deep-link: ?card=<name> или ?q=<text> → префильтр + авто-открытие ────────
+function applyDeepLink(){
+  try{
+    const p = new URLSearchParams(location.search);
+    const want = (p.get('card') || p.get('q') || '').trim();
+    if(!want) return;
+    sQ = want;
+    const si = $('si'); if(si) si.value = want;
+    render();
+    // точное совпадение по имени → сразу открыть карточку
+    const exact = A.find(c => (c.name||'').toLowerCase() === want.toLowerCase());
+    if(exact) opD(encodeURIComponent(exact.name));
+  }catch(e){}
 }
 
 // ── Render list ────────────────────────────────────────────────────────────
