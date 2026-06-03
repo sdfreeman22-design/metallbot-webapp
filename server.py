@@ -920,6 +920,13 @@ def calc_html():
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
     )
 
+@app.get("/calc_hud.html")
+def calc_hud_html():
+    return FileResponse(
+        WEBAPP_DIR / "calc_hud.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn

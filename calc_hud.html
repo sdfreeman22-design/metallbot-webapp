@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>METALLBOT — Калькулятор металла</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#08060c;--bg2:#0c0a12;--bg3:#12101a;
+  --surface:#14121e;--surface2:#1a1828;
+  --ink:#f0e8f2;--ink2:#8878a0;--ink3:#5a4e70;--ink4:#2e2840;
+  --red:#ff1464;--red-dim:rgba(255,20,100,.06);--red-glow:rgba(255,20,100,.12);
+  --green:#00ffa0;--green-dim:rgba(0,255,160,.06);
+  --amber:#ffb040;--amber-dim:rgba(255,176,64,.08);
+  --border:rgba(255,255,255,.03);--border2:rgba(255,255,255,.05);
+  --r:6px;--sans:'Wix Madefor Display',system-ui,sans-serif;--mono:'Share Tech Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);opacity:.35}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--ink4);border-radius:4px}
+
+.hdr{padding:16px 20px 13px;background:var(--bg);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;position:relative}
+.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-glow),transparent)}
+.hdr .brand{font-size:9px;color:var(--ink3);letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono)}
+.hdr h1{font-family:var(--mono);font-size:13px;color:var(--red);letter-spacing:2.5px;text-transform:uppercase;text-shadow:0 0 20px var(--red-dim);margin-top:3px}
+.hdr h1 .cur{animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.hc{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:1px;background:var(--bg3);padding:4px 10px;border-radius:4px;border:1px solid var(--border2)}
+
+.nav{display:flex;gap:6px;padding:12px 20px 0;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}
+.nav a{flex-shrink:0;padding:6px 16px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--ink3);
+  font-size:10px;font-weight:600;text-decoration:none;white-space:nowrap;letter-spacing:1.2px;text-transform:uppercase;transition:all .2s;font-family:var(--mono)}
+.nav a.on{color:var(--red);border-color:var(--red);box-shadow:0 0 12px var(--red-dim),inset 0 0 12px var(--red-dim)}
+
+.wrap{max-width:880px;margin:0 auto;padding:16px 20px 8px;display:grid;grid-template-columns:1fr 1.1fr;gap:16px}
+@media(max-width:640px){.wrap{grid-template-columns:1fr}}
+
+.panel{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:16px;position:relative;overflow:hidden}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-dim),transparent)}
+.panel .ph{font-family:var(--mono);font-size:10px;color:var(--ink2);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel .ph::before{content:'▸';color:var(--red)}
+
+.field{margin-bottom:13px}
+.field>label{display:block;font-family:var(--mono);font-size:9px;color:var(--ink3);margin-bottom:6px;letter-spacing:1.4px;text-transform:uppercase}
+.inp{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--ink);
+  font-size:15px;font-family:var(--mono);outline:none;transition:border-color .25s,box-shadow .25s;-webkit-appearance:none;appearance:none}
+.inp:focus{border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim),0 0 22px rgba(255,20,100,.05)}
+select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%235a4e70' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+
+.chrow{display:flex;flex-wrap:wrap;gap:7px}
+.chip2{padding:8px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--ink3);
+  font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.3px;transition:all .18s;font-family:var(--sans);display:flex;align-items:center;gap:6px}
+.chip2 .ic{font-family:var(--mono);font-size:13px;color:var(--ink4)}
+.chip2:active{transform:scale(.95)}
+.chip2.p.on{color:var(--amber);border-color:var(--amber);background:transparent;box-shadow:0 0 12px var(--amber-dim),inset 0 0 14px var(--amber-dim)}
+.chip2.p.on .ic{color:var(--amber)}
+.chip2.m.on{color:var(--red);border-color:var(--red);background:transparent;box-shadow:0 0 12px var(--red-dim),inset 0 0 14px var(--red-dim)}
+.chip2.md{flex:1;justify-content:center;font-size:10px;letter-spacing:.2px;text-align:center;white-space:normal;line-height:1.2}
+.chip2.md.on{color:var(--green);border-color:var(--green);background:transparent;box-shadow:0 0 12px var(--green-dim),inset 0 0 14px var(--green-dim)}
+
+.hint{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:.5px;margin:-4px 0 12px;line-height:1.5}
+.hint b{color:var(--amber)}
+
+.btnrow{display:flex;gap:7px;margin-top:4px}
+.runbtn{flex:1;padding:13px;border-radius:var(--r);border:1px solid var(--red);cursor:pointer;
+  background:transparent;color:var(--red);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;
+  box-shadow:inset 0 0 18px var(--red-dim);transition:all .2s}
+.runbtn:hover{background:var(--red-dim);box-shadow:0 0 22px var(--red-dim),inset 0 0 18px var(--red-dim)}
+.runbtn:active{transform:scale(.98)}
+
+#out{display:flex;flex-direction:column;gap:12px}
+.ph-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:280px;
+  border:1px dashed var(--border2);border-radius:var(--r);color:var(--ink3);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-align:center;background:var(--bg2)}
+.ph-empty .blip{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 14px var(--red);animation:blink 1.4s steps(1) infinite}
+
+.calcbar{padding:34px 20px;text-align:center;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);font-family:var(--mono)}
+.calcbar .ln{font-size:10px;color:var(--ink2);letter-spacing:1.5px;margin-bottom:14px}
+.bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;border:1px solid var(--border2)}
+.bar>i{display:block;height:100%;width:30%;background:linear-gradient(90deg,transparent,var(--red),transparent);animation:scan 1s ease-in-out infinite}
+@keyframes scan{0%{margin-left:-30%}100%{margin-left:100%}}
+
+.hero{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:20px 18px;text-align:center;position:relative;overflow:hidden;
+  opacity:0;transform:translateY(12px);animation:rise .45s cubic-bezier(.16,1,.3,1) forwards}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px}
+.hero.mass::before{background:linear-gradient(90deg,transparent,var(--red),transparent)}
+.hero.cost::before{background:linear-gradient(90deg,transparent,var(--green),transparent)}
+.hero .tag{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:2px;text-transform:uppercase}
+.hero .big{font-family:var(--mono);font-size:40px;font-weight:400;line-height:1;margin:8px 0;letter-spacing:1px}
+.hero.mass .big{color:var(--red);text-shadow:0 0 30px var(--red-glow)}
+.hero.cost .big{color:var(--green);text-shadow:0 0 30px var(--green-dim)}
+.hero .big .u{font-size:16px;color:var(--ink2);text-shadow:none}
+.hero .sub{font-family:var(--mono);font-size:10px;color:var(--ink2);letter-spacing:1px}
+@keyframes rise{to{opacity:1;transform:translateY(0)}}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px}
+@media(max-width:480px){.tiles{grid-template-columns:1fr 1fr}}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 8px;text-align:center;position:relative;overflow:hidden}
+.tile::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-dim),transparent)}
+.tile .v{font-family:var(--mono);font-size:13px;color:var(--ink);line-height:1.25;word-break:break-word}
+.tile .v .u{font-size:9px;color:var(--ink3)}
+.tile .l{font-size:7px;color:var(--ink3);margin-top:6px;text-transform:uppercase;letter-spacing:1.3px;font-weight:600}
+
+.desc{font-family:var(--mono);font-size:10px;color:var(--ink2);text-align:center;letter-spacing:.5px;padding:2px}
+.addbtn{width:100%;padding:11px;border-radius:var(--r);border:1px dashed var(--amber);cursor:pointer;background:transparent;
+  color:var(--amber);font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;transition:all .2s}
+.addbtn:hover{background:var(--amber-dim)}
+.note{font-family:var(--mono);font-size:9px;color:var(--ink3);text-align:right;line-height:1.7;letter-spacing:.5px}
+.note .w{color:var(--amber)}
+
+/* ── телефон ── */
+@media(max-width:430px){
+  .wrap{padding:14px 14px 8px;gap:12px}
+  .specwrap{padding:8px 14px 60px}
+  .chip2{font-size:10px;padding:7px 10px;gap:5px}
+  .spec-row,.spec-tot{font-size:10px;gap:5px;padding:9px 10px}
+  .spec-row .nm small{font-size:7px}
+  .hero .big{font-size:34px}
+}
+
+/* ── спецификация ── */
+.specwrap{max-width:880px;margin:0 auto;padding:8px 20px 60px}
+.spec{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;position:relative}
+.spec::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--amber),transparent)}
+.spec-h{padding:12px 14px;font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.spec-row{display:grid;grid-template-columns:1.7fr .7fr .8fr .9fr 24px;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;align-items:center}
+.spec-row .nm{color:var(--ink)}.spec-row .nm small{display:block;color:var(--ink3);font-size:8px;margin-top:2px}
+.spec-row .qy{color:var(--ink2);text-align:right}.spec-row .ms{color:var(--amber);text-align:right}.spec-row .sm{color:var(--green);text-align:right}
+.spec-row .rm{color:var(--ink3);cursor:pointer;text-align:center;font-size:13px}.spec-row .rm:hover{color:var(--red)}
+.spec-th{background:var(--bg3);font-size:8px!important;color:var(--ink3)!important;text-transform:uppercase;letter-spacing:1px}
+.spec-th span{display:block}.spec-th .qy,.spec-th .ms,.spec-th .sm{text-align:right}
+.spec-tot{display:grid;grid-template-columns:1.7fr .7fr .8fr .9fr 24px;gap:8px;padding:12px 14px;border-top:1px solid var(--border2);background:var(--bg2);font-family:var(--mono);font-size:13px;align-items:center}
+.spec-tot .tl{color:var(--ink3);font-size:9px;letter-spacing:1.5px;text-transform:uppercase}
+.spec-tot .ms{color:var(--amber);text-align:right;font-weight:600}.spec-tot .sm{color:var(--green);text-align:right;font-weight:600}
+.spec-act{display:flex;gap:7px;padding:12px 14px;border-top:1px solid var(--border)}
+.spec-act button{flex:1;padding:11px;border-radius:var(--r);cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;transition:all .2s}
+.b-send{border:1px solid var(--green);background:transparent;color:var(--green);box-shadow:inset 0 0 14px var(--green-dim)}
+.b-send:hover{background:var(--green-dim)}
+.b-clr{border:1px solid var(--border2);background:transparent;color:var(--ink3)}.b-clr:hover{border-color:var(--red);color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="brand">ООО «Механические Технологии»</div>
+    <h1>КАЛЬКУЛЯТОР МЕТАЛЛА<span class="cur">_</span></h1>
+  </div>
+  <div class="hc" id="clk">READY</div>
+</div>
+
+<nav class="nav">
+  <a href="/">КООПЕРАЦИЯ</a>
+  <a href="/calc.html" class="on">МЕТАЛЛ</a>
+  <a href="/docs.html">ДОКУМЕНТЫ</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- INPUT -->
+  <div class="panel">
+    <div class="ph">Параметры проката</div>
+
+    <div class="field">
+      <label>Режим расчёта</label>
+      <div class="chrow" id="modeRow">
+        <button class="chip2 md on" data-mode="fwd"  onclick="selMode(this)">Размеры → масса</button>
+        <button class="chip2 md"    data-mode="rev"  onclick="selMode(this)">Масса → длина</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Профиль проката</label>
+      <div class="chrow" id="profRow"></div>
+    </div>
+
+    <div class="field">
+      <label>Материал</label>
+      <div class="chrow" id="matRow"></div>
+    </div>
+
+    <div class="field" id="gradeField"></div>
+
+    <div id="dimFields"></div>
+    <div class="hint" id="profHint"></div>
+
+    <div class="btnrow">
+      <button class="runbtn" id="runBtn" onclick="calculate()">▶ Рассчитать</button>
+    </div>
+  </div>
+
+  <!-- OUTPUT -->
+  <div id="out">
+    <div class="ph-empty">
+      <div class="blip"></div>
+      <div>ВЫБЕРИТЕ ПРОФИЛЬ, МАТЕРИАЛ И РАЗМЕРЫ<br>→ МАССА И СТОИМОСТЬ МЕТАЛЛА</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="specwrap" id="specWrap" style="display:none"></div>
+
+<script>
+/* ────────── Telegram WebApp ────────── */
+var TG = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+if (TG) {
+  TG.ready(); TG.expand();
+  try { TG.setHeaderColor('#08060c'); TG.setBackgroundColor('#08060c'); } catch(e){}
+  TG.MainButton.setParams({ text:'РАССЧИТАТЬ', color:'#ff1464', text_color:'#ffffff' });
+  TG.MainButton.show(); TG.MainButton.onClick(calculate);
+}
+function haptic(k){ try{ if(TG) TG.HapticFeedback.impactOccurred(k||'light'); }catch(e){} }
+function notify(k){ try{ if(TG) TG.HapticFeedback.notificationOccurred(k||'success'); }catch(e){} }
+function fmt(n){ if(n==null) return "—"; return Number(n).toLocaleString("ru-RU",{maximumFractionDigits:0}); }
+function r1(n){ return Math.round(n*10)/10; }
+function r2(n){ return Math.round(n*100)/100; }
+function massStr(g){ return g>=1000 ? r2(g/1000).toLocaleString("ru-RU")+' кг' : Math.round(g)+' г'; }
+var PI=Math.PI;
+
+/* ────────── материалы → марки (плотность г/см³, средняя цена ₽/кг) ──────────
+   * — цены ПРЕДВАРИТЕЛЬНЫЕ (медь, титан, часть нержи), уточнить у владельца      */
+var MATERIALS={
+  aluminium:{name:'Алюминий', grades:[
+    {g:'Д16Т',dens:2.78,price:2000},{g:'В95Т',dens:2.85,price:2000},{g:'АМг6',dens:2.64,price:2000},{g:'АМг5',dens:2.65,price:2000},{g:'АД31',dens:2.71,price:2000}]},
+  brass:{name:'Латунь', grades:[
+    {g:'ЛС59-1',dens:8.50,price:2000},{g:'Л63',dens:8.44,price:2000},{g:'Л68',dens:8.50,price:2000}]},
+  bronze:{name:'Бронза', grades:[
+    {g:'БрАЖ9-4',dens:7.60,price:2000},{g:'БрОЦС5-5-5',dens:8.80,price:2000},{g:'БрБ2',dens:8.20,price:2000}]},
+  steel:{name:'Сталь', grades:[
+    {g:'Сталь 45',dens:7.85,price:100},{g:'Ст3',dens:7.85,price:100},{g:'40Х',dens:7.85,price:200},{g:'30ХГСА',dens:7.85,price:200},{g:'У8А',dens:7.81,price:300},{g:'38Х2МЮА',dens:7.85,price:600}]},
+  inox:{name:'Нержавейка', grades:[
+    {g:'12Х18Н10Т',dens:7.93,price:600},{g:'08Х18Н10',dens:7.90,price:600},{g:'10Х17Н13М2Т',dens:8.00,price:700},{g:'20Х13',dens:7.70,price:500},{g:'40Х13',dens:7.70,price:500}]},
+  copper:{name:'Медь', grades:[
+    {g:'М1',dens:8.90,price:900},{g:'М2',dens:8.90,price:900},{g:'М3',dens:8.94,price:900}]},
+  titanium:{name:'Титан', grades:[
+    {g:'ВТ1-0',dens:4.50,price:3500},{g:'ВТ6',dens:4.43,price:4500},{g:'ОТ4',dens:4.55,price:4000}]}
+};
+var curMat="steel",curGrade=0,curProf="round",revMode=false;
+
+/* ГОСТ 8240 швеллер · ГОСТ 8239 двутавр — масса кг/м (база — сталь) */
+var CHAN ={5:4.84,6.5:5.9,8:7.05,10:8.59,12:10.4,14:12.3,16:14.2,18:16.3,20:18.4,22:21.0,24:24.0,27:27.7,30:31.8,36:41.9,40:48.3};
+var IBEAM={10:9.46,12:11.5,14:13.7,16:15.9,18:18.4,20:21.0,22:24.0,24:27.3,27:31.5,30:36.5,36:48.6,40:57.0,45:66.5,50:78.5};
+function keysNum(o){ return Object.keys(o).map(Number); }
+
+/* ────────── профили ──────────
+   calc(v,ρ) → {m:масса 1 шт (г), vol:объём (см³), perm:погон.масса (кг/м|null), area:площадь (м²|null), desc}
+   все профили линейны по длине v.L → подходит и для обратного расчёта             */
+var PROFILES={
+  round:{ ic:'◯', short:'Круг/пруток',
+    fields:[{id:'d',label:'Диаметр ∅, мм',v:20},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Круглый пруток (сплошной). Масса = π·r²·длина·ρ.',
+    calc:function(v,p){ var a=PI*Math.pow(v.d/2,2); return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Круг ∅'+v.d}; } },
+  hex:{ ic:'⬡', short:'Шестигранник',
+    fields:[{id:'s',label:'Размер под ключ S, мм',v:17},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Шестигранный пруток. S — размер под ключ. Масса = 0,866·S²·длина·ρ.',
+    calc:function(v,p){ var a=0.8660254*v.s*v.s; return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Шестигранник S'+v.s}; } },
+  square:{ ic:'▢', short:'Квадрат',
+    fields:[{id:'a',label:'Сторона, мм',v:20},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Квадратный пруток. Масса = сторона²·длина·ρ.',
+    calc:function(v,p){ var a=v.a*v.a; return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Квадрат '+v.a}; } },
+  sheet:{ ic:'▭', short:'Лист/плита',
+    fields:[{id:'B',label:'Ширина, мм',v:1000},{id:'t',label:'Толщина, мм',v:4},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Лист/плита. Масса = длина·ширина·толщина·ρ.',
+    calc:function(v,p){ var vol=v.L*v.B*v.t/1000; return {m:vol*p,vol:vol,perm:null,area:v.L*v.B/1e6,desc:'Лист '+v.B+'×'+v.t}; } },
+  tube:{ ic:'⊚', short:'Труба кругл.',
+    fields:[{id:'d',label:'Наружный ∅, мм',v:57},{id:'wall',label:'Толщина стенки, мм',v:3.5},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Труба круглая. Масса = π·(R²−r²)·длина·ρ.',
+    calc:function(v,p){ var a=PI*(Math.pow(v.d/2,2)-Math.pow((v.d-2*v.wall)/2,2)); return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Труба ∅'+v.d+'×'+v.wall}; } },
+  ptube:{ ic:'⊡', short:'Труба профил.',
+    fields:[{id:'A',label:'Ширина A, мм',v:40},{id:'B',label:'Высота B, мм',v:25},{id:'wall',label:'Стенка, мм',v:2},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Профильная труба (кв/прямоуг). Сечение = A·B − (A−2s)(B−2s).',
+    calc:function(v,p){ var a=v.A*v.B-(v.A-2*v.wall)*(v.B-2*v.wall); return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Профтруба '+v.A+'×'+v.B+'×'+v.wall}; } },
+  strip:{ ic:'▬', short:'Полоса',
+    fields:[{id:'b',label:'Ширина, мм',v:40},{id:'t',label:'Толщина, мм',v:4},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Полоса (плоский прокат). Масса = ширина·толщина·длина·ρ.',
+    calc:function(v,p){ var a=v.b*v.t; return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Полоса '+v.b+'×'+v.t}; } },
+  angle:{ ic:'∟', short:'Уголок',
+    fields:[{id:'b1',label:'Полка 1, мм',v:63},{id:'b2',label:'Полка 2, мм',v:63},{id:'t',label:'Толщина, мм',v:5},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Уголок (равно/неравнополочный). Сечение = (полка1+полка2−толщина)·толщина.',
+    calc:function(v,p){ var a=(v.b1+v.b2-v.t)*v.t; return {m:a*v.L*p/1000,vol:a*v.L/1000,perm:a*p/1000,desc:'Уголок '+v.b1+'×'+v.b2+'×'+v.t}; } },
+  channel:{ ic:'⊏', short:'Швеллер',
+    fields:[{id:'num',label:'Швеллер № (ГОСТ 8240)',type:'select',options:keysNum(CHAN),v:20},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Швеллер по ГОСТ 8240. Масса — по № профиля (база — сталь, пересчёт по ρ).',
+    calc:function(v,p){ var perm=(CHAN[v.num]||0)*(p/7.85); return {m:perm*v.L,vol:perm*v.L/p,perm:perm,desc:'Швеллер №'+v.num}; } },
+  ibeam:{ ic:'⊥', short:'Двутавр',
+    fields:[{id:'num',label:'Двутавр № (ГОСТ 8239)',type:'select',options:keysNum(IBEAM),v:20},{id:'L',label:'Длина, мм',v:1000}],
+    hint:'Балка двутавровая по ГОСТ 8239. Масса — по № профиля (база — сталь, пересчёт по ρ).',
+    calc:function(v,p){ var perm=(IBEAM[v.num]||0)*(p/7.85); return {m:perm*v.L,vol:perm*v.L/p,perm:perm,desc:'Двутавр №'+v.num}; } }
+};
+
+function gradeNow(){ return MATERIALS[curMat].grades[curGrade]; }
+function selMode(b){ haptic('light'); revMode=(b.dataset.mode==='rev');
+  document.querySelectorAll('#modeRow .chip2').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); buildFields(); }
+
+/* ────────── рендер чипов / марок / полей ────────── */
+function buildProfiles(){
+  var row=document.getElementById('profRow'); row.innerHTML='';
+  Object.keys(PROFILES).forEach(function(key){
+    var p=PROFILES[key], b=document.createElement('button');
+    b.className='chip2 p'+(key===curProf?' on':'');
+    b.innerHTML='<span class="ic">'+p.ic+'</span>'+p.short;
+    b.onclick=function(){ haptic('light'); curProf=key;
+      document.querySelectorAll('#profRow .chip2').forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on'); buildFields(); };
+    row.appendChild(b);
+  });
+}
+function buildMaterials(){
+  var row=document.getElementById('matRow'); row.innerHTML='';
+  Object.keys(MATERIALS).forEach(function(key){
+    var m=MATERIALS[key], b=document.createElement('button');
+    b.className='chip2 m'+(key===curMat?' on':'');
+    b.textContent=m.name;
+    b.onclick=function(){ haptic('light'); curMat=key; curGrade=0;
+      document.querySelectorAll('#matRow .chip2').forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on'); buildGrades(); };
+    row.appendChild(b);
+  });
+}
+function buildGrades(){
+  var f=document.getElementById('gradeField');
+  var opts=MATERIALS[curMat].grades.map(function(gr,i){ return '<option value="'+i+'"'+(i===curGrade?' selected':'')+'>'+gr.g+' · ρ'+gr.dens+' · '+gr.price+' ₽/кг</option>'; }).join('');
+  f.innerHTML='<label>Марка</label><select class="inp" id="gradeSel" onchange="curGrade=parseInt(this.value)">'+opts+'</select>';
+}
+function buildFields(){
+  var p=PROFILES[curProf], box=document.getElementById('dimFields'); box.innerHTML='';
+  p.fields.forEach(function(f){
+    if(revMode && f.id==='L') return;                       // в обратном режиме длину считаем
+    var d=document.createElement('div'); d.className='field';
+    if(f.type==='select'){
+      var opts=f.options.map(function(o){ return '<option value="'+o+'"'+(o===f.v?' selected':'')+'>№ '+o+'</option>'; }).join('');
+      d.innerHTML='<label>'+f.label+'</label><select class="inp" id="'+f.id+'">'+opts+'</select>';
+    } else {
+      d.innerHTML='<label>'+f.label+'</label><input class="inp" type="number" id="'+f.id+'" value="'+f.v+'" step="0.1" min="0">';
+    }
+    box.appendChild(d);
+  });
+  var extra=document.createElement('div'); extra.className='field';
+  if(revMode){
+    extra.innerHTML='<label>Целевая масса, кг</label><input class="inp" type="number" id="targetM" value="100" step="1" min="0">';
+  } else {
+    extra.innerHTML='<label>Количество, шт</label><input class="inp" type="number" id="qty" value="1" step="1" min="1">';
+  }
+  box.appendChild(extra);
+  document.getElementById('profHint').innerHTML=p.hint;
+}
+
+/* ────────── расчёт (клиентский, детерминированный) ────────── */
+function getVals(){
+  var o={}; document.querySelectorAll('#dimFields [id]').forEach(function(el){ o[el.id]=parseFloat(el.value)||0; }); return o;
+}
+function calculate(){
+  var p=PROFILES[curProf], vals=getVals(), ok=true;
+  p.fields.forEach(function(f){ if(f.id==='L'&&revMode) return; if((vals[f.id]||0)<=0) ok=false; });
+  if(revMode && (vals.targetM||0)<=0) ok=false;
+  if(!ok){ notify('error'); document.getElementById('clk').textContent='ERR: ДАННЫЕ'; return; }
+
+  haptic('medium'); document.getElementById('clk').textContent='CALC…';
+  var out=document.getElementById('out');
+  out.innerHTML='<div class="calcbar"><div class="ln">› '+p.short.toUpperCase()+' · '+(revMode?'МАССА → ДЛИНА':'РАСЧЁТ МАССЫ И СТОИМОСТИ')+'</div><div class="bar"><i></i></div></div>';
+  setTimeout(function(){ revMode?renderRev(p,vals):renderFwd(p,vals); },380);
+}
+
+var lastResult=null;   // для «в спецификацию»
+
+function renderFwd(p,vals){
+  notify('success'); document.getElementById('clk').textContent='DONE';
+  var gr=gradeNow(), g=p.calc(vals,gr.dens), qty=Math.max(1,parseInt(vals.qty)||1);
+  var m1=g.m, mN=m1*qty, cost1=m1/1000*gr.price, costN=mN/1000*gr.price;
+  var permTile=g.perm!=null
+    ? '<div class="tile"><div class="v">'+r2(g.perm)+'<span class="u"> кг/м</span></div><div class="l">Погон. масса</div></div>'
+    : '<div class="tile"><div class="v">'+r2(g.area||0)+'<span class="u"> м²</span></div><div class="l">Площадь 1 шт</div></div>';
+  var full=g.desc+' · L'+vals.L+' мм';
+  lastResult={desc:full,sub:p.short+' · '+gr.g,qtyLabel:fmt(qty)+' шт',mass:mN,cost:costN};
+
+  document.getElementById('out').innerHTML=
+     '<div class="desc">'+full+'</div>'
+    +'<div class="hero mass"><div class="tag">МАССА · 1 ШТ</div><div class="big">'+massStr(m1)+'</div>'
+      +'<div class="sub">партия '+fmt(qty)+' шт = '+massStr(mN)+'</div></div>'
+    +'<div class="tiles">'
+      +'<div class="tile"><div class="v">'+r1(g.vol)+'<span class="u"> см³</span></div><div class="l">Объём 1 шт</div></div>'
+      +permTile
+      +'<div class="tile"><div class="v">'+fmt(gr.price)+'<span class="u"> ₽/кг</span></div><div class="l">Средняя цена</div></div>'
+      +'<div class="tile"><div class="v">'+fmt(cost1)+'<span class="u"> ₽</span></div><div class="l">Стоим. 1 шт</div></div>'
+    +'</div>'
+    +'<div class="hero cost"><div class="tag">СТОИМОСТЬ МЕТАЛЛА · '+fmt(qty)+' ШТ</div><div class="big">'+fmt(costN)+'<span class="u"> ₽</span></div>'
+      +'<div class="sub">по средней цене '+fmt(gr.price)+' ₽/кг · '+MATERIALS[curMat].name+' '+gr.g+'</div></div>'
+    +'<button class="addbtn" onclick="addSpec()">＋ В спецификацию</button>'
+    +'<div class="note"><span class="w">Масса — точная</span> · цена средняя рыночная (ориентир)<br>стоимость изготовления детали — модуль «Расчёт детали»</div>';
+}
+
+function renderRev(p,vals){
+  notify('success'); document.getElementById('clk').textContent='DONE';
+  var gr=gradeNow();
+  var pv={}; Object.keys(vals).forEach(function(k){pv[k]=vals[k];}); pv.L=1000;
+  var perMM=p.calc(pv,gr.dens).m/1000;                 // г/мм  (== кг/м численно)
+  var targetG=vals.targetM*1000;
+  var Lmm=targetG/perMM, Lm=Lmm/1000;
+  var perm=perMM;                                       // кг/м
+  var metersPerTonne=1000/perMM;                        // м в тонне
+  var cost=vals.targetM*gr.price;
+  var full=p.calc(pv,gr.dens).desc+' · масса '+r2(vals.targetM)+' кг';
+  lastResult={desc:full,sub:p.short+' · '+gr.g,qtyLabel:r1(Lm)+' м',mass:targetG,cost:cost};
+
+  document.getElementById('out').innerHTML=
+     '<div class="desc">'+p.calc(pv,gr.dens).desc+' · цель '+r2(vals.targetM)+' кг</div>'
+    +'<div class="hero mass"><div class="tag">НУЖНАЯ ДЛИНА</div><div class="big">'+r1(Lm)+'<span class="u"> м</span></div>'
+      +'<div class="sub">'+fmt(Lmm)+' мм · для '+r2(vals.targetM)+' кг</div></div>'
+    +'<div class="tiles">'
+      +'<div class="tile"><div class="v">'+r2(perm)+'<span class="u"> кг/м</span></div><div class="l">Масса 1 м</div></div>'
+      +'<div class="tile"><div class="v">'+r1(metersPerTonne)+'<span class="u"> м</span></div><div class="l">Метров в тонне</div></div>'
+      +'<div class="tile"><div class="v">'+fmt(gr.price)+'<span class="u"> ₽/кг</span></div><div class="l">Средняя цена</div></div>'
+      +'<div class="tile"><div class="v">'+fmt(cost)+'<span class="u"> ₽</span></div><div class="l">Стоимость</div></div>'
+    +'</div>'
+    +'<div class="hero cost"><div class="tag">СТОИМОСТЬ · '+r2(vals.targetM)+' КГ</div><div class="big">'+fmt(cost)+'<span class="u"> ₽</span></div>'
+      +'<div class="sub">'+r1(Lm)+' м '+MATERIALS[curMat].name+' '+gr.g+' по '+fmt(gr.price)+' ₽/кг</div></div>'
+    +'<button class="addbtn" onclick="addSpec()">＋ В спецификацию</button>'
+    +'<div class="note"><span class="w">Метраж — точный</span> · цена средняя рыночная (ориентир)</div>';
+}
+
+/* ────────── спецификация (корзина проката) ────────── */
+var spec=[];
+function addSpec(){ if(!lastResult) return; haptic('medium'); spec.push(lastResult); renderSpec();
+  var w=document.getElementById('specWrap'); w.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+function rmSpec(i){ haptic('light'); spec.splice(i,1); renderSpec(); }
+function clearSpec(){ haptic('light'); spec=[]; renderSpec(); }
+function sendSpec(){
+  if(!spec.length) return; notify('success');
+  var payload={type:'metal_spec',items:spec,total_mass_g:spec.reduce(function(s,x){return s+x.mass;},0),total_cost:spec.reduce(function(s,x){return s+x.cost;},0)};
+  if(TG && TG.sendData){ TG.sendData(JSON.stringify(payload)); }   // уйдёт боту → «Заказать материалы»
+  else { alert('Спецификация ('+spec.length+' поз.) уйдёт в «Заказать материалы».\nИтого: '+massStr(payload.total_mass_g)+' · '+fmt(payload.total_cost)+' ₽'); }
+}
+function renderSpec(){
+  var w=document.getElementById('specWrap');
+  if(!spec.length){ w.style.display='none'; w.innerHTML=''; return; }
+  w.style.display='block';
+  var tM=0,tC=0;
+  var rows=spec.map(function(x,i){ tM+=x.mass; tC+=x.cost;
+    return '<div class="spec-row"><div class="nm">'+x.desc+'<small>'+x.sub+'</small></div>'
+      +'<div class="qy">'+x.qtyLabel+'</div><div class="ms">'+massStr(x.mass)+'</div><div class="sm">'+fmt(x.cost)+' ₽</div>'
+      +'<div class="rm" onclick="rmSpec('+i+')">✕</div></div>'; }).join("");
+  w.innerHTML='<div class="spec">'
+    +'<div class="spec-h"><span>Спецификация · '+spec.length+' поз.</span><span style="color:var(--ink3)">заказ проката</span></div>'
+    +'<div class="spec-row spec-th"><span class="nm">Наименование</span><span class="qy">Кол/Длина</span><span class="ms">Масса</span><span class="sm">Сумма</span><span></span></div>'
+    +rows
+    +'<div class="spec-tot"><span class="tl">Итого</span><span></span><span class="ms">'+massStr(tM)+'</span><span class="sm">'+fmt(tC)+' ₽</span><span></span></div>'
+    +'<div class="spec-act"><button class="b-send" onclick="sendSpec()">📨 Оформить заявку</button><button class="b-clr" onclick="clearSpec()">Очистить</button></div>'
+    +'</div>';
+}
+
+document.addEventListener("keydown",function(e){ if(e.key==="Enter") calculate(); });
+buildProfiles(); buildMaterials(); buildGrades(); buildFields();
+</script>
+</body>
+</html>
