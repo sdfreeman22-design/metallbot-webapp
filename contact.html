@@ -467,6 +467,7 @@ function rD(c){
   const kn=LB[c.kind]||'';
   const sr=st(c.rating)||'—';
   const s=c.stats||{};
+  const hasHist=(c.history||[]).length>0;  // закупки показываем только при наличии истории
 
   const info=[
     ['Тип',kn],['Город',c.city],['Телефон',c.phone],['Email',c.email],
@@ -520,8 +521,8 @@ function rD(c){
     +'</div>'
     +'<div class="ds">'
     +'<div class="dst"><div class="dv" style="color:var(--amber);font-size:11px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг</div></div>'
-    +'<div class="dst"><div class="dv">'+(s.purchases_count!=null?s.purchases_count:'—')+'</div><div class="dll">Закупок</div></div>'
-    +'<div class="dst"><div class="dv" style="font-size:12px">'+(s.total_sum?fS(s.total_sum):'—')+'</div><div class="dll">Оборот</div></div>'
+    +(hasHist?'<div class="dst"><div class="dv">'+s.purchases_count+'</div><div class="dll">Закупок</div></div>':'')
+    +(hasHist?'<div class="dst"><div class="dv" style="font-size:12px">'+(s.total_sum?fS(s.total_sum):'—')+'</div><div class="dll">Оборот</div></div>':'')
     +(c.founded_year?'<div class="dst"><div class="dv" style="font-size:12px">'+E(c.founded_year)+'</div><div class="dll">Основана</div></div>':'')
     +(c.employees?'<div class="dst"><div class="dv" style="font-size:11px">'+E(c.employees)+'</div><div class="dll">Штат</div></div>':'')
     +'</div>'
@@ -529,7 +530,7 @@ function rD(c){
     +galHtml+desc+tagsH+certs+facts
     +(info?'<div class="dsec">Контакты</div><div class="dcd">'+info+'</div>':'')
     +badge
-    +'<div class="dsec">История закупок</div>'+hist
+    +(hasHist?'<div class="dsec">История закупок</div>'+hist:'')
     +'<div style="height:32px"></div></div>';
 
   // Fetch locally stored images from /api/images/{slug}
