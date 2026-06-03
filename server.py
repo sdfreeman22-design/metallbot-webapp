@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("metallbot.webapp")
 
 # ── fastapi ───────────────────────────────────────────────────────────────────
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -889,6 +889,65 @@ def api_calc(
         "tiers":        tiers,
         "vat_rate":    _VAT,
     }
+
+
+# ── Заявка из «Калькулятора металла» (inline Mini App → Bot API владельцу) ──────
+OWNER_CHAT_ID = int(os.getenv("OWNER_CHAT_ID", "978434417"))  # Дмитрий — владелец
+
+@app.post("/api/metal-order")
+async def api_metal_order(request: Request, x_telegram_init_data: str = Header(default="")):
+    """Приём спецификации из калькулятора металла.
+    Inline-Mini-App не может Telegram.WebApp.sendData() → доставляем владельцу
+    через Telegram Bot API. dryrun=true — только проверка наличия токена."""
+    token = _BOT_TOKEN
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if body.get("dryrun"):
+        return {"ok": bool(token), "token": bool(token)}
+    if not token:
+        return JSONResponse({"ok": False, "reason": "no_token"}, status_code=200)
+    items = body.get("items") or []
+    if not items:
+        return JSONResponse({"ok": False, "reason": "empty"}, status_code=400)
+
+    user = _verify_init_data(x_telegram_init_data) or {}
+    who = (user.get("first_name", "") +
+           (" @" + user.get("username") if user.get("username") else "")).strip()
+
+    def _money(v) -> str:
+        try:
+            return f"{round(float(v)):,}".replace(",", " ")
+        except Exception:
+            return "0"
+
+    lines = []
+    for i, it in enumerate(items, 1):
+        kg = float(it.get("mass") or 0) / 1000.0
+        lines.append(f"{i}. {it.get('desc','—')} — {it.get('qtyLabel','')} · "
+                     f"{kg:.2f} кг · {_money(it.get('cost'))} ₽")
+    tot_kg = float(body.get("total_mass_g") or 0) / 1000.0
+    txt = "📐 <b>Заявка по металлу (Mini App)</b>\n"
+    if who:
+        txt += f"👤 {who}\n"
+    txt += "\n<b>Позиции:</b>\n" + "\n".join(lines)
+    txt += f"\n\n<b>ИТОГО:</b> {tot_kg:.2f} кг · {_money(body.get('total_cost'))} ₽"
+
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": OWNER_CHAT_ID, "text": txt, "parse_mode": "HTML"},
+            )
+            ok = (r.status_code == 200) and bool(r.json().get("ok"))
+            if not ok:
+                logger.warning("[metal-order] tg send: %s %s", r.status_code, r.text[:200])
+            return {"ok": ok}
+    except Exception as e:
+        logger.warning("[metal-order] %s", e)
+        return JSONResponse({"ok": False, "reason": "send_error"}, status_code=200)
 
 
 # ── Static ────────────────────────────────────────────────────────────────────

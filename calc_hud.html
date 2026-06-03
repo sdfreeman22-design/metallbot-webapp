@@ -446,11 +446,31 @@ function addSpec(){ if(!lastResult) return; haptic('medium'); spec.push(lastResu
   var w=document.getElementById('specWrap'); w.scrollIntoView({behavior:'smooth',block:'nearest'}); }
 function rmSpec(i){ haptic('light'); spec.splice(i,1); renderSpec(); }
 function clearSpec(){ haptic('light'); spec=[]; renderSpec(); }
+function popup(msg,title){
+  try{ if(TG && TG.showPopup){ TG.showPopup({title:title||'Калькулятор металла',message:msg,buttons:[{type:'ok'}]}); return; } }catch(e){}
+  try{ if(TG && TG.showAlert){ TG.showAlert(msg); return; } }catch(e){}
+  alert(msg);
+}
 function sendSpec(){
-  if(!spec.length) return; notify('success');
-  var payload={type:'metal_spec',items:spec,total_mass_g:spec.reduce(function(s,x){return s+x.mass;},0),total_cost:spec.reduce(function(s,x){return s+x.cost;},0)};
-  if(TG && TG.sendData){ TG.sendData(JSON.stringify(payload)); }   // уйдёт боту → «Заказать материалы»
-  else { alert('Спецификация ('+spec.length+' поз.) уйдёт в «Заказать материалы».\nИтого: '+massStr(payload.total_mass_g)+' · '+fmt(payload.total_cost)+' ₽'); }
+  if(!spec.length) return;
+  haptic('medium');
+  var payload={type:'metal_spec',items:spec,
+    total_mass_g:spec.reduce(function(s,x){return s+x.mass;},0),
+    total_cost:spec.reduce(function(s,x){return s+x.cost;},0)};
+  // inline Mini App не умеет sendData → шлём на бэкенд, он уведомит владельца
+  fetch('/api/metal-order',{method:'POST',
+      headers:{'Content-Type':'application/json','X-Telegram-Init-Data':(TG&&TG.initData)||''},
+      body:JSON.stringify(payload)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d && d.ok){ notify('success');
+        popup('✓ Заявка отправлена менеджеру\nИтого: '+massStr(payload.total_mass_g)+' · '+fmt(payload.total_cost)+' ₽');
+        spec=[]; renderSpec(); }
+      else if(d && d.reason==='no_token'){ notify('error');
+        popup('Заявка не ушла: на сервере не настроен токен бота. Сообщите разработчику.'); }
+      else { notify('error'); popup('Не удалось отправить заявку. Попробуйте ещё раз.'); }
+    })
+    .catch(function(){ notify('error'); popup('Нет связи с сервером — заявка не отправлена.'); });
 }
 function renderSpec(){
   var w=document.getElementById('specWrap');
