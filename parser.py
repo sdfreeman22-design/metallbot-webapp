@@ -37,6 +37,20 @@ logger = logging.getLogger("metallbot.parser")
 # MITM) — задать переменную окружения PARSER_VERIFY_SSL=1.
 _PARSER_SSL = os.getenv("PARSER_VERIFY_SSL", "").strip().lower() in ("1", "true", "yes")
 
+
+def _root_domain(url: str) -> str:
+    """Корневой домен из URL/строки сайта: https://www.intek-m43.ru/kazan/ → intek-m43.ru.
+    Нужен для антидубля: разные страницы одного сайта = одна компания."""
+    if not url:
+        return ""
+    u = url.strip().lower()
+    if not u.startswith(("http://", "https://")):
+        u = "http://" + u
+    host = (urlparse(u).hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
 def _normalize_phone(p: str) -> str:
     """Нормализует телефон до +7 (XXX) XXX-XX-XX, извлекая только цифры."""
     if not p:
@@ -1304,13 +1318,22 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
                 ws.update_cell(1, new_idx, col_name)
                 col_map[col_name] = new_idx
 
-        # Ищем строку по имени компании (точное совпадение или добавляем новую)
+        # Ищем строку по имени ИЛИ по корневому домену (антидубль: разные
+        # страницы одного сайта — одна компания, не плодим карточки)
         row_idx = None
         company_col = col_map.get("Компания", 1)
+        site_col    = col_map.get("Сайт")
+        new_dom     = _root_domain(result.url)
         for i, row in enumerate(all_vals[1:], start=2):
             cell = row[company_col - 1].strip() if len(row) >= company_col else ""
-            if cell.lower() == result.company_name.lower():
+            name_match = cell.lower() == result.company_name.lower()
+            dom_match  = (bool(new_dom) and site_col is not None
+                          and len(row) >= site_col
+                          and _root_domain(row[site_col - 1]) == new_dom)
+            if name_match or dom_match:
                 row_idx = i
+                if dom_match and not name_match:
+                    logger.info("[sheets] домен %s уже есть (строка %d) — обновляю, не дублирую", new_dom, i)
                 break
 
         if row_idx is None:
