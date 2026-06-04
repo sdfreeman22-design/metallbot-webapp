@@ -917,6 +917,9 @@ async def api_metal_order(request: Request, x_telegram_init_data: str = Header(d
         "total_cost":   body.get("total_cost") or 0,
         "who":          who,
         "uid":          user.get("id"),
+        "username":     user.get("username") or "",
+        "first_name":   user.get("first_name") or "",
+        "last_name":    user.get("last_name") or "",
         "ts":           time.time(),
     })
     if len(_metal_orders) > 200:

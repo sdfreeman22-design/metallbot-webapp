@@ -332,6 +332,12 @@ var PROFILES={
 };
 
 function gradeNow(){ return MATERIALS[curMat].grades[curGrade]; }
+/* метка материала для заявки: «Сталь 40Х», «Алюминий Д16Т», но не «Сталь Сталь 45» */
+function matLabelNow(gr){ gr=gr||gradeNow(); var n=MATERIALS[curMat].name;
+  return (gr.g.indexOf(n)===0) ? gr.g : (n+' '+gr.g); }
+/* множитель цены под профиль: шестигранник из стали = ×2 (владелец 2026-06-04) */
+function profPriceMul(){ return (curProf==='hex' && curMat==='steel') ? 2 : 1; }
+function gradePrice(gr){ return (gr||gradeNow()).price * profPriceMul(); }
 function selMode(b){ haptic('light'); revMode=(b.dataset.mode==='rev');
   document.querySelectorAll('#modeRow .chip2').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); buildFields(); }
 
@@ -344,7 +350,7 @@ function buildProfiles(){
     b.innerHTML='<span class="ic">'+p.ic+'</span>'+p.short;
     b.onclick=function(){ haptic('light'); curProf=key;
       document.querySelectorAll('#profRow .chip2').forEach(function(x){x.classList.remove('on');});
-      b.classList.add('on'); buildFields(); };
+      b.classList.add('on'); buildGrades(); buildFields(); };
     row.appendChild(b);
   });
 }
@@ -362,7 +368,7 @@ function buildMaterials(){
 }
 function buildGrades(){
   var f=document.getElementById('gradeField');
-  var opts=MATERIALS[curMat].grades.map(function(gr,i){ return '<option value="'+i+'"'+(i===curGrade?' selected':'')+'>'+gr.g+' · ρ'+gr.dens+' · '+gr.price+' ₽/кг</option>'; }).join('');
+  var opts=MATERIALS[curMat].grades.map(function(gr,i){ return '<option value="'+i+'"'+(i===curGrade?' selected':'')+'>'+gr.g+' · ρ'+gr.dens+' · '+gradePrice(gr)+' ₽/кг</option>'; }).join('');
   f.innerHTML='<label>Марка</label><select class="inp" id="gradeSel" onchange="curGrade=parseInt(this.value)">'+opts+'</select>';
 }
 function buildFields(){
@@ -413,12 +419,12 @@ var lastResult=null;   // для «в спецификацию»
 function renderFwd(p,vals){
   notify('success'); setClk('ГОТОВО');
   var gr=gradeNow(), g=p.calc(vals,gr.dens), qty=Math.max(1,parseInt(vals.qty)||1);
-  var m1=g.m, mN=m1*qty, cost1=m1/1000*gr.price, costN=mN/1000*gr.price;
+  var pr=gradePrice(gr), m1=g.m, mN=m1*qty, cost1=m1/1000*pr, costN=mN/1000*pr;
   var permTile=g.perm!=null
     ? '<div class="tile"><div class="v">'+r2(g.perm)+'<span class="u"> кг/м</span></div><div class="l">Погон. масса</div></div>'
     : '<div class="tile"><div class="v">'+r2(g.area||0)+'<span class="u"> м²</span></div><div class="l">Площадь 1 шт</div></div>';
   var full=g.desc+' · L'+vals.L+' мм';
-  lastResult={desc:full,sub:p.short+' · '+gr.g,qtyLabel:fmt(qty)+' шт',mass:mN,cost:costN};
+  lastResult={desc:full,sub:p.short+' · '+gr.g,material:matLabelNow(gr),grade:gr.g,pricePerKg:pr,qtyLabel:fmt(qty)+' шт',mass:mN,cost:costN};
 
   document.getElementById('out').innerHTML=
      '<div class="desc">'+full+'</div>'
@@ -427,11 +433,11 @@ function renderFwd(p,vals){
     +'<div class="tiles">'
       +'<div class="tile"><div class="v">'+r1(g.vol)+'<span class="u"> см³</span></div><div class="l">Объём 1 шт</div></div>'
       +permTile
-      +'<div class="tile"><div class="v">'+fmt(gr.price)+'<span class="u"> ₽/кг</span></div><div class="l">Средняя цена</div></div>'
+      +'<div class="tile"><div class="v">'+fmt(pr)+'<span class="u"> ₽/кг</span></div><div class="l">Средняя цена</div></div>'
       +'<div class="tile"><div class="v">'+fmt(cost1)+'<span class="u"> ₽</span></div><div class="l">Стоим. 1 шт</div></div>'
     +'</div>'
     +'<div class="hero cost"><div class="tag">СТОИМОСТЬ МЕТАЛЛА · '+fmt(qty)+' ШТ</div><div class="big">'+fmt(costN)+'<span class="u"> ₽</span></div>'
-      +'<div class="sub">по средней цене '+fmt(gr.price)+' ₽/кг · '+MATERIALS[curMat].name+' '+gr.g+'</div></div>'
+      +'<div class="sub">по средней цене '+fmt(pr)+' ₽/кг · '+MATERIALS[curMat].name+' '+gr.g+'</div></div>'
     +'<button class="addbtn" onclick="addSpec()">＋ В спецификацию</button>'
     +'<div class="note"><span class="w">Масса — точная</span> · цена средняя рыночная (ориентир)<br>стоимость изготовления детали — модуль «Расчёт детали»</div>';
 }
@@ -445,9 +451,9 @@ function renderRev(p,vals){
   var Lmm=targetG/perMM, Lm=Lmm/1000;
   var perm=perMM;                                       // кг/м
   var metersPerTonne=1000/perMM;                        // м в тонне
-  var cost=vals.targetM*gr.price;
+  var pr=gradePrice(gr), cost=vals.targetM*pr;
   var full=p.calc(pv,gr.dens).desc+' · масса '+r2(vals.targetM)+' кг';
-  lastResult={desc:full,sub:p.short+' · '+gr.g,qtyLabel:r1(Lm)+' м',mass:targetG,cost:cost};
+  lastResult={desc:full,sub:p.short+' · '+gr.g,material:matLabelNow(gr),grade:gr.g,pricePerKg:pr,qtyLabel:r1(Lm)+' м',mass:targetG,cost:cost};
 
   document.getElementById('out').innerHTML=
      '<div class="desc">'+p.calc(pv,gr.dens).desc+' · цель '+r2(vals.targetM)+' кг</div>'
@@ -456,11 +462,11 @@ function renderRev(p,vals){
     +'<div class="tiles">'
       +'<div class="tile"><div class="v">'+r2(perm)+'<span class="u"> кг/м</span></div><div class="l">Масса 1 м</div></div>'
       +'<div class="tile"><div class="v">'+r1(metersPerTonne)+'<span class="u"> м</span></div><div class="l">Метров в тонне</div></div>'
-      +'<div class="tile"><div class="v">'+fmt(gr.price)+'<span class="u"> ₽/кг</span></div><div class="l">Средняя цена</div></div>'
+      +'<div class="tile"><div class="v">'+fmt(pr)+'<span class="u"> ₽/кг</span></div><div class="l">Средняя цена</div></div>'
       +'<div class="tile"><div class="v">'+fmt(cost)+'<span class="u"> ₽</span></div><div class="l">Стоимость</div></div>'
     +'</div>'
     +'<div class="hero cost"><div class="tag">СТОИМОСТЬ · '+r2(vals.targetM)+' КГ</div><div class="big">'+fmt(cost)+'<span class="u"> ₽</span></div>'
-      +'<div class="sub">'+r1(Lm)+' м '+MATERIALS[curMat].name+' '+gr.g+' по '+fmt(gr.price)+' ₽/кг</div></div>'
+      +'<div class="sub">'+r1(Lm)+' м '+MATERIALS[curMat].name+' '+gr.g+' по '+fmt(pr)+' ₽/кг</div></div>'
     +'<button class="addbtn" onclick="addSpec()">＋ В спецификацию</button>'
     +'<div class="note"><span class="w">Метраж — точный</span> · цена средняя рыночная (ориентир)</div>';
 }
