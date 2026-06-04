@@ -1,0 +1,27 @@
+name: keep-warm
+
+# Render-бесплатка усыпляет веб-сервис после ~15 мин простоя → первый запуск
+# мини-аппа утром «будит» его 30–50с. Пингуем /api/health каждые 5 минут с
+# инфраструктуры GitHub (24/7, не зависит от ПК владельца) — сервис не засыпает.
+# Репозиторий публичный → минуты Actions не тарифицируются.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # каждые 5 минут (порог сна Render — 15 мин, запас 3×)
+  workflow_dispatch:          # можно дёрнуть вручную из вкладки Actions
+
+# Чтобы параллельные запуски не накапливались, если GitHub задержал крон
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping Render /api/health
+        run: |
+          # --retry: холодный старт может занять до ~50с — даём проснуться и дожимаем
+          curl -fsS --retry 4 --retry-delay 8 --retry-all-errors --max-time 90 \
+            https://metallbot-webapp.onrender.com/api/health
