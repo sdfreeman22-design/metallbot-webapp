@@ -229,11 +229,14 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
 <script>
 /* ────────── Telegram WebApp ────────── */
 var TG = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+window.__usesMainButton = true;   // этот модуль владеет MainButton — nav.js её не прячет
 if (TG) {
   TG.ready(); TG.expand();
   try { TG.setHeaderColor('#08060c'); TG.setBackgroundColor('#08060c'); } catch(e){}
   TG.MainButton.setParams({ text:'РАССЧИТАТЬ', color:'#ff1464', text_color:'#ffffff' });
   TG.MainButton.show(); TG.MainButton.onClick(calculate);
+  // Возврат на калькулятор (в т.ч. из bfcache, когда другой модуль её спрятал) — вернуть кнопку
+  window.addEventListener('pageshow', function(){ try{ TG.MainButton.show(); }catch(e){} });
 }
 function haptic(k){ try{ if(TG) TG.HapticFeedback.impactOccurred(k||'light'); }catch(e){} }
 function notify(k){ try{ if(TG) TG.HapticFeedback.notificationOccurred(k||'success'); }catch(e){} }

@@ -68,7 +68,20 @@
 
   window.NavBack = { refresh: refresh, handle: handleBack, canGoBack: canGoBack };
 
+  // ── Чистим «залипшую» MainButton ──────────────────────────────────────────
+  // MainButton в Telegram — глобальная на весь webview: если её показал один
+  // модуль (Калькулятор металла «РАССЧИТАТЬ»), при переходе на другой модуль
+  // она «висит» с мёртвым обработчиком. Прячем её на каждой странице, КРОМЕ тех,
+  // что ею реально пользуются (ставят window.__usesMainButton = true).
+  // Делаем это на 'pageshow' (а не синхронно): к этому моменту inline-скрипт
+  // страницы уже выставил флаг — поэтому на самом калькуляторе кнопка не мигает.
+  function syncMainButton() {
+    if (!tg || !tg.MainButton || window.__usesMainButton) return;
+    try { tg.MainButton.hide(); } catch (e) {}
+  }
+
   if (tg && tg.BackButton) { try { tg.BackButton.onClick(handleBack); } catch (e) {} }
   refresh();
   window.addEventListener('pageshow', refresh);
+  window.addEventListener('pageshow', syncMainButton);
 })();
