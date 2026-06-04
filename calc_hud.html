@@ -336,17 +336,15 @@ function gradeNow(){ return MATERIALS[curMat].grades[curGrade]; }
 function matLabelNow(gr){ gr=gr||gradeNow(); var n=MATERIALS[curMat].name;
   return (gr.g.indexOf(n)===0) ? gr.g : (n+' '+gr.g); }
 /* наценка цены стали под профиль (владелец 2026-06-04):
-   шестигранник = ×2 по всем маркам; квадрат = линейно +100% (самая дешёвая марка) … +50% (самая дорогая) */
+   шестигранник = ×2 по всем маркам (премиум); ВСЕ остальные профили = линейно
+   +100% (самая дешёвая марка) … +50% (самая дорогая) — по базовой цене марки */
 function steelProfMul(price){
   if(curMat!=='steel') return 1;
   if(curProf==='hex') return 2;
-  if(curProf==='square'){
-    var gs=MATERIALS.steel.grades, lo=gs[0].price, hi=gs[0].price;
-    for(var i=1;i<gs.length;i++){ var q=gs[i].price; if(q<lo)lo=q; if(q>hi)hi=q; }
-    var t = hi>lo ? (price-lo)/(hi-lo) : 0;   // 0 у самой дешёвой марки, 1 у самой дорогой
-    return 2 - 0.5*t;                          // +100% → +50%
-  }
-  return 1;
+  var gs=MATERIALS.steel.grades, lo=gs[0].price, hi=gs[0].price;
+  for(var i=1;i<gs.length;i++){ var q=gs[i].price; if(q<lo)lo=q; if(q>hi)hi=q; }
+  var t = hi>lo ? (price-lo)/(hi-lo) : 0;   // 0 у самой дешёвой марки, 1 у самой дорогой
+  return 2 - 0.5*t;                          // +100% → +50%
 }
 function gradePrice(gr){ gr=gr||gradeNow(); return Math.round(gr.price*steelProfMul(gr.price)); }
 function selMode(b){ haptic('light'); revMode=(b.dataset.mode==='rev');
