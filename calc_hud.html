@@ -35,6 +35,23 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
 .hdr h1 .cur{animation:blink 1.1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .hc{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:1px;background:var(--bg3);padding:4px 10px;border-radius:4px;border:1px solid var(--border2)}
+/* индикатор статуса калькулятора — тусклый зелёный неон */
+#clk{position:relative;color:#39e8a0;border-color:rgba(0,255,160,.30);background:rgba(0,255,160,.045);
+  text-shadow:0 0 6px rgba(0,255,160,.45);
+  box-shadow:0 0 9px rgba(0,255,160,.10),inset 0 0 8px rgba(0,255,160,.05);
+  transition:color .25s,border-color .25s,background .25s,box-shadow .25s,text-shadow .25s;
+  animation:clkPulse 2.6s ease-in-out infinite}
+#clk::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:6px;vertical-align:middle;
+  background:#39e8a0;box-shadow:0 0 7px #00ffa0,0 0 3px #00ffa0}
+@keyframes clkPulse{0%,100%{box-shadow:0 0 8px rgba(0,255,160,.09),inset 0 0 8px rgba(0,255,160,.045)}
+  50%{box-shadow:0 0 15px rgba(0,255,160,.20),inset 0 0 10px rgba(0,255,160,.08)}}
+#clk.calc{color:var(--amber);border-color:rgba(255,176,64,.45);background:var(--amber-dim);
+  text-shadow:0 0 7px rgba(255,176,64,.5);box-shadow:0 0 13px rgba(255,176,64,.18),inset 0 0 9px rgba(255,176,64,.08);animation:none}
+#clk.calc::before{background:var(--amber);box-shadow:0 0 7px var(--amber),0 0 3px var(--amber);animation:clkBlink .7s steps(1) infinite}
+#clk.err{color:var(--red);border-color:rgba(255,20,100,.5);background:var(--red-dim);
+  text-shadow:0 0 7px rgba(255,20,100,.5);box-shadow:0 0 13px rgba(255,20,100,.2),inset 0 0 9px rgba(255,20,100,.08);animation:none}
+#clk.err::before{background:var(--red);box-shadow:0 0 7px var(--red),0 0 3px var(--red)}
+@keyframes clkBlink{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
 
 .nav{display:flex;gap:6px;padding:12px 20px 0;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}
 .nav a{flex-shrink:0;padding:6px 16px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--ink3);
@@ -154,7 +171,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
     <div class="brand">ООО «Механические Технологии»</div>
     <h1>КАЛЬКУЛЯТОР МЕТАЛЛА<span class="cur">_</span></h1>
   </div>
-  <div class="hc" id="clk">READY</div>
+  <div class="hc" id="clk">ГОТОВ</div>
 </div>
 
 <nav class="nav">
@@ -228,7 +245,7 @@ var PI=Math.PI;
 
 /* ────────── материалы → марки (плотность г/см³, средняя цена ₽/кг с НДС) ──────────
    Цветмет (алюминий, латунь, бронза, медь) = 1500 ₽/кг с НДС (владелец 2026-06-03).
-   Сталь/нержа — по якорям; титан/чугун/часть марок стали — ориентир, уточнить.     */
+   Сталь — якоря +30% (владелец 2026-06-04); нержа — по якорям; титан/чугун — ориентир.  */
 var MATERIALS={
   aluminium:{name:'Алюминий', grades:[
     {g:'Д16Т',dens:2.78,price:1500},{g:'Д16',dens:2.78,price:1500},{g:'В95Т',dens:2.85,price:1500},
@@ -243,10 +260,10 @@ var MATERIALS={
   copper:{name:'Медь', grades:[
     {g:'М1',dens:8.90,price:1500},{g:'М2',dens:8.90,price:1500},{g:'М3',dens:8.94,price:1500},{g:'М0',dens:8.94,price:1500}]},
   steel:{name:'Сталь', grades:[
-    {g:'Ст3',dens:7.85,price:100},{g:'Ст20',dens:7.85,price:100},{g:'Сталь 45',dens:7.85,price:100},
-    {g:'40Х',dens:7.85,price:200},{g:'30ХГСА',dens:7.85,price:200},{g:'09Г2С',dens:7.85,price:120},
-    {g:'65Г',dens:7.85,price:150},{g:'У8А',dens:7.81,price:300},{g:'ХВГ',dens:7.83,price:350},
-    {g:'Х12МФ',dens:7.70,price:400},{g:'38Х2МЮА',dens:7.85,price:600}]},
+    {g:'Ст3',dens:7.85,price:130},{g:'Ст20',dens:7.85,price:130},{g:'Сталь 45',dens:7.85,price:130},
+    {g:'40Х',dens:7.85,price:260},{g:'30ХГСА',dens:7.85,price:260},{g:'09Г2С',dens:7.85,price:156},
+    {g:'65Г',dens:7.85,price:195},{g:'У8А',dens:7.81,price:390},{g:'ХВГ',dens:7.83,price:455},
+    {g:'Х12МФ',dens:7.70,price:520},{g:'38Х2МЮА',dens:7.85,price:780}]},
   inox:{name:'Нержавейка', grades:[
     {g:'12Х18Н10Т',dens:7.93,price:600},{g:'08Х18Н10',dens:7.90,price:600},{g:'10Х17Н13М2Т',dens:8.00,price:700},
     {g:'03Х17Н14М3',dens:8.00,price:750},{g:'12Х13',dens:7.72,price:480},{g:'20Х13',dens:7.70,price:500},
@@ -372,13 +389,17 @@ function buildFields(){
 function getVals(){
   var o={}; document.querySelectorAll('#dimFields [id]').forEach(function(el){ o[el.id]=parseFloat(el.value)||0; }); return o;
 }
+function setClk(t, s){
+  var e=document.getElementById('clk'); if(!e) return;
+  e.textContent=t; e.classList.remove('calc','err'); if(s) e.classList.add(s);
+}
 function calculate(){
   var p=PROFILES[curProf], vals=getVals(), ok=true;
   p.fields.forEach(function(f){ if(f.id==='L'&&revMode) return; if((vals[f.id]||0)<=0) ok=false; });
   if(revMode && (vals.targetM||0)<=0) ok=false;
-  if(!ok){ notify('error'); document.getElementById('clk').textContent='ERR: ДАННЫЕ'; return; }
+  if(!ok){ notify('error'); setClk('ОШИБКА: ДАННЫЕ','err'); return; }
 
-  haptic('medium'); document.getElementById('clk').textContent='CALC…';
+  haptic('medium'); setClk('СЧИТАЮ…','calc');
   var out=document.getElementById('out');
   out.innerHTML='<div class="calcbar"><div class="ln">› '+p.short.toUpperCase()+' · '+(revMode?'МАССА → ДЛИНА':'РАСЧЁТ МАССЫ И СТОИМОСТИ')+'</div><div class="bar"><i></i></div></div>';
   setTimeout(function(){ revMode?renderRev(p,vals):renderFwd(p,vals); },380);
@@ -387,7 +408,7 @@ function calculate(){
 var lastResult=null;   // для «в спецификацию»
 
 function renderFwd(p,vals){
-  notify('success'); document.getElementById('clk').textContent='DONE';
+  notify('success'); setClk('ГОТОВО');
   var gr=gradeNow(), g=p.calc(vals,gr.dens), qty=Math.max(1,parseInt(vals.qty)||1);
   var m1=g.m, mN=m1*qty, cost1=m1/1000*gr.price, costN=mN/1000*gr.price;
   var permTile=g.perm!=null
@@ -413,7 +434,7 @@ function renderFwd(p,vals){
 }
 
 function renderRev(p,vals){
-  notify('success'); document.getElementById('clk').textContent='DONE';
+  notify('success'); setClk('ГОТОВО');
   var gr=gradeNow();
   var pv={}; Object.keys(vals).forEach(function(k){pv[k]=vals[k];}); pv.L=1000;
   var perMM=p.calc(pv,gr.dens).m/1000;                 // г/мм  (== кг/м численно)
