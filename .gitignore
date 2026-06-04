@@ -1,0 +1,37 @@
+# Секреты — НИКОГДА не коммитить
+.env
+.env.*
+*creds*.json
+google_creds.json
+**/google_creds.json
+*.pem
+*.key
+service_account*.json
+
+# Локальные туннели / автозапуск
+.webapp_url
+cloudflared.exe
+ngrok.exe
+*.cf_*
+*.lhr_*
+# Туннели/диагностика — локальные текстовые логи (.ngrok_*, .pinggy_*, .serveo_*, .remote_*, .tunnel_*)
+.*_out.txt
+.*_err.txt
+.ssh_test.txt
+.lhr*.txt
+
+# Питон
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ОС / редакторы
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Логи / временное
+*.log
+tmp/
