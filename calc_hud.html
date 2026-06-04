@@ -487,7 +487,8 @@ function sendSpec(){
   haptic('medium');
   var payload={type:'metal_spec',items:spec,
     total_mass_g:spec.reduce(function(s,x){return s+x.mass;},0),
-    total_cost:spec.reduce(function(s,x){return s+x.cost;},0)};
+    total_cost:spec.reduce(function(s,x){return s+x.cost;},0),
+    user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null};  // координаты заказчика (fallback, если нет токена на сервере)
   // inline Mini App не умеет sendData → шлём на бэкенд, он уведомит владельца
   fetch('/api/metal-order',{method:'POST',
       headers:{'Content-Type':'application/json','X-Telegram-Init-Data':(TG&&TG.initData)||''},

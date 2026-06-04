@@ -114,6 +114,21 @@ def _verify_init_data(init_data: str) -> Optional[dict]:
         logger.warning("[auth] verify: %s", e)
         return None
 
+def _user_from_init_unverified(init_data: str) -> dict:
+    """Достаёт user из initData БЕЗ проверки подписи.
+    На Render может не быть TELEGRAM_TOKEN → _verify_init_data вернёт None и мы
+    не узнаем заказчика. Для уведомления-заявки (с кем связаться) подпись не
+    критична — поэтому здесь парсим имя/username/id без HMAC. Для изменяющих
+    операций по-прежнему используется строгий _verify_init_data."""
+    if not init_data:
+        return {}
+    try:
+        pairs = dict(_parse_qsl(init_data, keep_blank_values=True))
+        u = pairs.get("user")
+        return json.loads(u) if u else {}
+    except Exception:
+        return {}
+
 def require_manager(x_telegram_init_data: str = Header(default="")) -> dict:
     """FastAPI-зависимость для защиты изменяющих эндпоинтов (PUT/DELETE).
 
@@ -908,8 +923,16 @@ async def api_metal_order(request: Request, x_telegram_init_data: str = Header(d
     items = body.get("items") or []
     if not items:
         return JSONResponse({"ok": False, "reason": "empty"}, status_code=400)
-    user = _verify_init_data(x_telegram_init_data) or {}
-    who = (user.get("first_name", "") +
+    # Заказчик: сначала строгая проверка подписи; если токена на Render нет —
+    # парсим initData без подписи; в крайнем случае берём user из тела запроса
+    # (frontend шлёт TG.initDataUnsafe.user). Нужно лишь знать, с кем связаться.
+    user = _verify_init_data(x_telegram_init_data)
+    if not user:
+        user = _user_from_init_unverified(x_telegram_init_data)
+    if not user and isinstance(body.get("user"), dict):
+        user = body.get("user")
+    user = user or {}
+    who = (str(user.get("first_name", "")) +
            (" @" + user.get("username") if user.get("username") else "")).strip()
     _metal_orders.append({
         "items":        items,
