@@ -5,6 +5,7 @@
 <title>METALLBOT</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="/nav.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -448,7 +449,7 @@ async function opD(encId){
   const d=$('det');
   d.innerHTML=skD();
   d.classList.add('open');
-  if(tg){ tg.BackButton.show(); tg.BackButton.onClick(clD); }
+  window.NavBack&&NavBack.refresh();
 
   let c;
   try{
@@ -555,7 +556,7 @@ function rD(c){
 // ── Close detail ───────────────────────────────────────────────────────────
 function clD(){
   $('det').classList.remove('open');
-  if(tg) tg.BackButton.hide();
+  window.NavBack&&NavBack.refresh();
 }
 
 // ── Swipe to close ─────────────────────────────────────────────────────────
@@ -609,8 +610,9 @@ function opE(){
   $('er').value=c.rating||'';
   $('en').value=c.notes||'';
   $('em').classList.add('open');
+  window.NavBack&&NavBack.refresh();
 }
-function clEm(){ $('em').classList.remove('open'); }
+function clEm(){ $('em').classList.remove('open'); window.NavBack&&NavBack.refresh(); }
 
 // ── Delete company ─────────────────────────────────────────────────────────
 async function dlC(){
@@ -694,9 +696,25 @@ async function svC(){
 $('em').addEventListener('click',function(e){if(e.target===this)clEm()});
 
 // ── Lightbox ───────────────────────────────────────────────────────────────
-function opLb(url){haptic('light');$('lb-img').src=url;$('lb').classList.add('open')}
-function clLb(){$('lb').classList.remove('open');$('lb-img').src=''}
+function opLb(url){haptic('light');$('lb-img').src=url;$('lb').classList.add('open');window.NavBack&&NavBack.refresh()}
+function clLb(){$('lb').classList.remove('open');$('lb-img').src='';window.NavBack&&NavBack.refresh()}
 $('lb').addEventListener('click',function(e){if(e.target===this||e.target===$('lb-img'))clLb()});
+
+// ── Кнопка «Назад»: какие подэкраны открыты и как их закрывать ──────────────
+// nav.js дергает эти хуки: сначала закрывается верхний подэкран (фото → правка →
+// карточка), и только когда ничего не открыто — возврат на предыдущий модуль.
+window.__navHasOverlay=function(){
+  return $('lb').classList.contains('open')
+      || $('em').classList.contains('open')
+      || $('det').classList.contains('open');
+};
+window.__navBack=function(){
+  if($('lb').classList.contains('open')){ clLb(); return true; }
+  if($('em').classList.contains('open')){ clEm(); return true; }
+  if($('det').classList.contains('open')){ clD();  return true; }
+  return false;
+};
+window.NavBack&&NavBack.refresh();
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 load();

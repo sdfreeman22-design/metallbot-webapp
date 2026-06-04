@@ -1,0 +1,74 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   nav.js — единая кнопка «Назад» для всех модулей мини-аппа.
+
+   Зачем: модули (Кооперация / Калькулятор / Документы / Металл) — отдельные
+   страницы, плюс внутри есть подэкраны (карточка, редактирование, фото).
+   Раньше из них можно было выйти только закрыв весь мини-апп. Теперь —
+   нативная Telegram BackButton делает «шаг назад»:
+     1) если на странице открыт подэкран (карточка/модалка/фото) — закрыть его;
+     2) иначе — вернуться на предыдущий модуль (history.back);
+     3) если возвращаться некуда (точка входа) — кнопка скрыта (остаётся ✕).
+
+   Подключается на каждой странице: <script src="/nav.js"></script>
+   (после telegram-web-app.js).
+
+   Опциональные хуки страницы (если есть свои подэкраны):
+     window.__navHasOverlay = () => boolean   // открыт ли подэкран
+     window.__navBack        = () => boolean   // закрыть верхний подэкран; true=закрыл
+   После открытия/закрытия подэкрана вызывайте window.NavBack.refresh().
+─────────────────────────────────────────────────────────────────────────── */
+(function () {
+  var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  if (tg) { try { tg.ready(); } catch (e) {} }
+
+  // ── Глубина навигации внутри мини-аппа ────────────────────────────────────
+  // Считаем «шаги» внутри нашего приложения через history.state + sessionStorage,
+  // игнорируя «фантомные» записи истории, которые иногда оставляет Telegram.
+  // Точка входа → depth 0 (возвращаться некуда). Каждый переход по ссылке → +1.
+  // Возврат (history.back) восстанавливает уже помеченную запись → depth не растёт.
+  var navDepth = null;   // null = sessionStorage недоступен → fallback на history.length
+  try {
+    var st = (history.state && typeof history.state === 'object') ? history.state : {};
+    if (typeof st.navDepth !== 'number') {
+      var cur = parseInt(sessionStorage.getItem('navCursor'), 10);
+      navDepth = (isNaN(cur) ? -1 : cur) + 1;
+      st.navDepth = navDepth;
+      try { history.replaceState(st, ''); } catch (e) {}
+    } else {
+      navDepth = st.navDepth;
+    }
+    sessionStorage.setItem('navCursor', String(navDepth));
+  } catch (e) { navDepth = null; }
+
+  function canGoBack() {
+    if (navDepth !== null) return navDepth > 0;
+    try { return window.history.length > 1; } catch (e) { return false; }
+  }
+  function hasOverlay() {
+    try { return typeof window.__navHasOverlay === 'function' && !!window.__navHasOverlay(); }
+    catch (e) { return false; }
+  }
+  function refresh() {
+    if (!tg || !tg.BackButton) return;
+    try {
+      if (hasOverlay() || canGoBack()) tg.BackButton.show();
+      else tg.BackButton.hide();
+    } catch (e) {}
+  }
+  function handleBack() {
+    // 1) закрыть открытый подэкран этой страницы
+    try {
+      if (typeof window.__navBack === 'function' && window.__navBack() === true) { refresh(); return; }
+    } catch (e) {}
+    // 2) вернуться на предыдущий модуль
+    if (canGoBack()) { try { window.history.back(); return; } catch (e) {} }
+    // 3) идти некуда — закрыть мини-апп (на всякий случай; обычно кнопка тут скрыта)
+    if (tg) { try { tg.close(); } catch (e) {} }
+  }
+
+  window.NavBack = { refresh: refresh, handle: handleBack, canGoBack: canGoBack };
+
+  if (tg && tg.BackButton) { try { tg.BackButton.onClick(handleBack); } catch (e) {} }
+  refresh();
+  window.addEventListener('pageshow', refresh);
+})();
