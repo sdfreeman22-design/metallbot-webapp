@@ -1339,6 +1339,14 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
         if row_idx is None:
             # Добавляем новую строку
             row_idx = len(all_vals) + 1
+            # Авто-расширение листа, если упёрлись в потолок строк (grid limit):
+            # без этого новые карточки молча не сохранялись (Range exceeds grid limits)
+            try:
+                if row_idx > ws.row_count:
+                    ws.add_rows(row_idx - ws.row_count + 100)
+                    logger.info("[sheets] Лист '%s' расширен до %d строк", PARSED_SHEET, ws.row_count)
+            except Exception as _e:
+                logger.warning("[sheets] не удалось расширить лист: %s", _e)
             ws.update_cell(row_idx, company_col, result.company_name)
             ws.update_cell(row_idx, col_map.get("Лист", 2), sheet_name)
             logger.info("[sheets] Добавлена новая строка %d для '%s'", row_idx, result.company_name)
