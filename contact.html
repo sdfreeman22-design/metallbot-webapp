@@ -221,6 +221,11 @@ function authHeaders(extra){
 let A=[], aK='', sQ='';
 const $=id=>document.getElementById(id);
 const E=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';
+// Убираем эмодзи/пиктограммы из НАЗВАНИЯ при показе (красные квадраты 🟥, стрелки ➜,
+// галочки ✅ и т.п.), вшитые при парсинге сайтов. Только для отображения — ключ name не меняем.
+const cleanName=s=>{if(!s)return s;const t=String(s)
+  .replace(/[←-⇿⌀-⏿①-⓿■-➿⤀-⥿⬀-⯿︀-️‍\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}]/gu,'');
+  return t.replace(/\s{2,}/g,' ').replace(/^[\s‐-―•·,]+|[\s‐-―•·,]+$/g,'').trim();};
 const fS=n=>{n=+n;return n>=1e6?(n/1e6).toFixed(1)+'М':n>=1e3?(n/1e3).toFixed(0)+'К':n+'₽'};
 const st=r=>{r=Math.round(parseFloat(r)||0);return r?'★'.repeat(r)+'☆'.repeat(5-r):''};
 const LB={coop:'Кооператор',supplier:'Поставщик',both:'Кооп + Поставщик'};
@@ -437,7 +442,7 @@ function render(){
     const emailWarn=noEmail?'<div style="font-family:var(--mono);font-size:7px;color:rgba(255,176,64,.7);margin-top:4px;letter-spacing:.5px">⚠ нет email</div>':'';
     return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
-      +'<div class="cb">'+badge+'<div class="cn">'+E(c.name)+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
+      +'<div class="cb">'+badge+'<div class="cn">'+E(cleanName(c.name))+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
       +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+emailWarn+'</div>'
       +'</div>';
   }).join('');
@@ -515,7 +520,7 @@ function rD(c){
     +'<button class="bb" onclick="clD()">‹ Назад</button>'
     +'<button class="be" onclick="opE()">✎ Изменить</button>'
     +(isAdmin()?'<button class="bdl" onclick="dlC()">✕ Удалить</button>':'')
-    +'<div class="dn">'+E(c.name)+'</div>'
+    +'<div class="dn">'+E(cleanName(c.name))+'</div>'
     +'<div class="dk">'+E(kn)+'</div>'
     +'<div class="dc">'+E(c.city||'')+'</div>'
     +(host?'<a class="dl" href="'+E(c.website||'')+'" onclick="window.open(this.href);return false">'+E(host)+'</a>':'')

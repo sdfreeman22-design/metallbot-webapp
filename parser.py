@@ -37,6 +37,20 @@ logger = logging.getLogger("metallbot.parser")
 # MITM) — задать переменную окружения PARSER_VERIFY_SSL=1.
 _PARSER_SSL = os.getenv("PARSER_VERIFY_SSL", "").strip().lower() in ("1", "true", "yes")
 
+# Эмодзи/пиктограммы/символы (красные квадраты 🟥, стрелки ➜, галочки ✅, флаги, ZWJ, VS),
+# вшиваемые сайтами в <title> → не должны попадать в название компании.
+_NAME_EMOJI_RE = re.compile(
+    "[←-⇿⌀-⏿①-⓿■-➿⤀-⥿⬀-⯿"
+    "︀-️‍\U0001F000-\U0001FAFF\U0001F1E6-\U0001F1FF]")
+
+def _clean_company_name(s: str) -> str:
+    """Убирает эмодзи/пиктограммы из названия (не трогая буквы/цифры/№«»—–… и т.п.)."""
+    if not s:
+        return s
+    s = _NAME_EMOJI_RE.sub("", s)
+    s = re.sub(r"\s{2,}", " ", s)
+    return s.strip(" \t-–—•·,")
+
 
 def _root_domain(url: str) -> str:
     """Корневой домен из URL/строки сайта: https://www.intek-m43.ru/kazan/ → intek-m43.ru.
@@ -700,7 +714,7 @@ class SiteParser:
                 result.area_sqm       = ai_data.get("area_sqm", "")
                 result.extra_facts    = ai_data.get("extra_facts", [])
                 # Название компании с сайта
-                extracted = ai_data.get("company_name", "").strip()
+                extracted = _clean_company_name(ai_data.get("company_name", "").strip())
                 if extracted and len(extracted) > 3:
                     result._extracted_company_name = extracted
                 # Тип компании
