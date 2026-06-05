@@ -994,6 +994,13 @@ def calc_hud_html():
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
     )
 
+@app.get("/tolerances.html")
+def tolerances_html():
+    return FileResponse(
+        WEBAPP_DIR / "tolerances.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
 @app.get("/nav.js")
 def nav_js():
     # Общая кнопка «Назад» для всех модулей мини-аппа
