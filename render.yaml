@@ -13,3 +13,7 @@ services:
       # удаление карточек БЕЗ авторизации (fail-open). Значение задать в дашборде Render.
       - key: TELEGRAM_TOKEN
         sync: false
+      # ID Telegram (через запятую), кому разрешена правка/удаление базы (админы+
+      # менеджеры). На Render users.json нет → это основной источник прав.
+      - key: ALLOWED_IDS
+        sync: false

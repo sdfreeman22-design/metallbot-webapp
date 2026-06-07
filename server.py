@@ -76,8 +76,16 @@ from fastapi import Header, Depends
 _BOT_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
 
 def _load_allowed_ids() -> set:
-    """ID Telegram, которым разрешены изменения (админы + менеджеры из users.json)."""
+    """ID Telegram, которым разрешены изменения (админы + менеджеры).
+    Источники: env ALLOWED_IDS (через запятую/пробел) — ОСНОВНОЙ на Render, т.к.
+    users.json в webapp-репо нет; плюс users.json (если примонтирован локально)."""
     ids: set = set()
+    # из окружения ALLOWED_IDS (на Render users.json отсутствует → это главный источник)
+    raw = os.getenv("ALLOWED_IDS", "")
+    for tok in raw.replace(",", " ").replace(";", " ").split():
+        if tok.strip().isdigit():
+            ids.add(int(tok.strip()))
+    # из users.json (локальный запуск рядом с ботом)
     try:
         uj = ROOT_DIR / "users.json"
         if uj.exists():
