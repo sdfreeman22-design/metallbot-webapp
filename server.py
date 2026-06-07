@@ -640,10 +640,12 @@ def api_operations():
     for op_label, kws in OP_KEYS:
         cnt = 0
         for c in coops:
-            # name тоже учитываем: многие карточки названы по услуге («…фрезерные работы», «ФРЕЗЕРИСТ»)
+            # Операции — по полям ВОЗМОЖНОСТЕЙ: name + Виды_работ(service) + Оборудование + Специализация.
+            # НЕ по «Материалы»/«Заметки»: иначе металлоторговец с «оцинкованным прокатом» в материалах
+            # ложно попадёт в «Покрытие». name учитываем (карточки названы по услуге: «ФРЕЗЕРИСТ»).
             text = " ".join([
                 c.get("name", ""), c.get("service", ""), c.get("equipment", ""),
-                c.get("specialization", ""), c.get("materials", ""), c.get("notes", "")
+                c.get("specialization", ""),
             ]).lower()
             if any(kw in text for kw in kws):
                 cnt += 1
