@@ -35,3 +35,13 @@ Thumbs.db
 # Логи / временное
 *.log
 tmp/
+
+# Рантайм-кэш скачанных лого/фото контрагентов (эфемерно на Render, не исходники)
+static/images/
+
+# Локальные лаунчеры / служебное (не нужны на Render)
+*.bat
+tunnel_keeper.py
+contact_preview.html
+_probe*.py
+_fill_*.py
