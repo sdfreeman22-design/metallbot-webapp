@@ -175,6 +175,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
   <div class="sw"><input class="si" id="si" type="search" placeholder="Поиск контрагента..." autocomplete="off"></div>
   <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span></div>
   <div class="fl" id="ops-row" style="padding-top:2px"></div>
+  <div class="fl" id="mat-row" style="padding-top:2px"></div>
   <div id="list"></div>
   <div id="det"></div>
   <!-- lightbox -->
@@ -398,6 +399,41 @@ function setOp(el, op){
   render();
 }
 
+// ── Чипы материалов (фильтр «кто работает с …») ─────────────────────────────
+// Ключи — синхронны с server.py MAT_KW_LIST.
+const MAT_KW={
+  'сталь':['сталь','стальн','ст3','ст20','ст45','40х','09г2с','30хгса','конструкцион','углеродист'],
+  'нержавейка':['нержав','12х18','08х18','инокс','коррозионностойк'],
+  'алюминий':['алюмин','д16','амг','ад31','дюрал','силумин'],
+  'латунь':['латун','л63','лс59'],
+  'бронза':['бронз','браж','броф'],
+  'медь':['медь','медн'],
+  'титан':['титан','вт1','вт6','от4'],
+  'чугун':['чугун','сч10','сч20','вч50'],
+  'пластик':['пластик','капролон','фторопласт','полиамид','текстолит','оргстекл','паронит'],
+};
+let matQ='';
+async function loadMats(){
+  try{
+    const r = await fetch('/api/materials');
+    if(!r.ok) return;
+    const d = await r.json();
+    const row = $('mat-row');
+    if(!row || !d.materials || !d.materials.length) return;
+    let html = '<span class="chip on" data-mat="" onclick="setMat(this,\'\')">⬡ Все материалы</span>';
+    for(const {mat, count} of d.materials.slice(0, 9)){
+      html += `<span class="chip" data-mat="${E(mat)}" onclick="setMat(this,'${E(mat)}')">${E(mat)} <span style="opacity:.5">${count}</span></span>`;
+    }
+    row.innerHTML = html;
+  }catch(e){}
+}
+function setMat(el, mat){
+  matQ = mat.toLowerCase();
+  document.querySelectorAll('#mat-row .chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  render();
+}
+
 // ── Load contacts ──────────────────────────────────────────────────────────
 async function load(){
   $('list').innerHTML = skL();
@@ -413,6 +449,7 @@ async function load(){
   $('hc').textContent = A.length;
   render();
   loadOps();
+  loadMats();
   applyDeepLink();
 }
 
@@ -443,6 +480,12 @@ function render(){
       // НЕ по «Материалы»/«Заметки» — иначе металлоторговец с «оцинкованным прокатом» ложно попадёт в «Покрытие»
       const txt=[c.name,c.service,c.equipment,c.specialization].join(' ').toLowerCase();
       if(!kws.some(k=>txt.includes(k))) return false;
+    }
+    // Фильтр по материалу (чип) — по полю «Материалы»
+    if(matQ){
+      const mk=MAT_KW[matQ]||[matQ];
+      const mt=(c.materials||'').toLowerCase();
+      if(!mk.some(k=>mt.includes(k))) return false;
     }
     return !q || [c.name,c.city,c.specialization,c.service,c.materials,c.equipment,c.notes].some(s=>(s||'').toLowerCase().includes(q));
   });
@@ -550,7 +593,7 @@ function rD(c){
     +(host?'<a class="dl" href="'+E(c.website||'')+'" onclick="window.open(this.href);return false">'+E(host)+'</a>':'')
     +'</div>'
     +'<div class="ds">'
-    +(sr?'<div class="dst"><div class="dv" style="color:var(--amber);font-size:16px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг</div></div>':'')
+    +(sr?'<div class="dst" onclick="starInfo()" style="cursor:pointer"><div class="dv" style="color:var(--amber);font-size:16px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг ⓘ</div></div>':'')
     +(ac.resp?'<div class="dst"><div class="dv">'+ac.resp+'</div><div class="dll">Откликов</div></div>':'')
     +(ac.order?'<div class="dst"><div class="dv">'+ac.order+'</div><div class="dll">Заявок</div></div>':'')
     +(ac.calc?'<div class="dst"><div class="dv">'+ac.calc+'</div><div class="dll">Просчётов</div></div>':'')
@@ -673,6 +716,16 @@ async function dlC(){
     hapticNotify('error');
     alert('Ошибка удаления: '+e.message);
   }
+}
+
+// Пояснение: за что начисляются звёзды (активность в экосистеме)
+function starInfo(){
+  haptic('light');
+  alert('Звёзды — активность контрагента в экосистеме «Союз Производственников»:\n'
+    +'• отклик на рассылку / взял заказ — вес ×5\n'
+    +'• заявка/заказ через бота — ×2\n'
+    +'• просчёт в калькуляторе — ×1\n\n'
+    +'Шкала относительная: 5★ — самые активные участники. Нет активности — звёзд нет.');
 }
 
 // Отметить активность контрагента (ручной отклик менеджера) → пересчёт звёзд

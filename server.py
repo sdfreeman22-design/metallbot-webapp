@@ -784,6 +784,33 @@ def api_operations():
     return {"operations": result}
 
 
+# Материалы — ключи синхронны с contact.html MAT_KW и _reclassify_mat.py / _fill_mat.py
+MAT_KW_LIST = [
+    ("Сталь",      ["сталь", "стальн", "ст3", "ст20", "ст45", "40х", "09г2с", "30хгса", "конструкцион", "углеродист"]),
+    ("Нержавейка", ["нержав", "12х18", "08х18", "инокс", "коррозионностойк"]),
+    ("Алюминий",   ["алюмин", "д16", "амг", "ад31", "дюрал", "силумин"]),
+    ("Латунь",     ["латун", "л63", "лс59"]),
+    ("Бронза",     ["бронз", "браж", "броф"]),
+    ("Медь",       ["медь", "медн"]),
+    ("Титан",      ["титан", "вт1", "вт6", "от4"]),
+    ("Чугун",      ["чугун", "сч10", "сч20", "вч50"]),
+    ("Пластик",    ["пластик", "капролон", "фторопласт", "полиамид", "текстолит", "оргстекл", "паронит"]),
+]
+
+
+@app.get("/api/materials")
+def api_materials():
+    """Топ материалов по кооператорам для фильтр-чипов «кто работает с …». Источник — поле «Материалы»."""
+    coops = [c for c in _load_contacts() if c["kind"] in ("coop", "both")]
+    counts: dict[str, int] = {}
+    for mat_label, kws in MAT_KW_LIST:
+        cnt = sum(1 for c in coops if any(kw in (c.get("materials", "") or "").lower() for kw in kws))
+        if cnt > 0:
+            counts[mat_label] = cnt
+    result = [{"mat": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: -x[1])]
+    return {"materials": result}
+
+
 @app.get("/api/stats")
 def api_stats():
     coops     = [c for c in _load_contacts() if c["kind"] == "coop"]
