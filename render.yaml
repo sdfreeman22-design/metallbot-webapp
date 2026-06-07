@@ -9,3 +9,7 @@ services:
         sync: false
       - key: GOOGLE_CREDS_JSON
         sync: false
+      # ВАЖНО (безопасность): без TELEGRAM_TOKEN require_manager пропускает правку/
+      # удаление карточек БЕЗ авторизации (fail-open). Значение задать в дашборде Render.
+      - key: TELEGRAM_TOKEN
+        sync: false
