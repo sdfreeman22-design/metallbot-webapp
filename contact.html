@@ -437,7 +437,9 @@ function render(){
     // Фильтр по операции (чип) — по ключам, как на сервере; учитываем и название
     if(opQ){
       const kws=OP_KW[opQ]||[opQ];
-      const txt=[c.name,c.service,c.equipment,c.specialization,c.materials,c.notes].join(' ').toLowerCase();
+      // операции определяем по полям ВОЗМОЖНОСТЕЙ (Виды_работ/Оборудование/Специализация/название),
+      // НЕ по «Материалы»/«Заметки» — иначе металлоторговец с «оцинкованным прокатом» ложно попадёт в «Покрытие»
+      const txt=[c.name,c.service,c.equipment,c.specialization].join(' ').toLowerCase();
       if(!kws.some(k=>txt.includes(k))) return false;
     }
     return !q || [c.name,c.city,c.specialization,c.service,c.materials,c.equipment,c.notes].some(s=>(s||'').toLowerCase().includes(q));
@@ -449,7 +451,6 @@ function render(){
   }
   el.innerHTML=f.map((c,i)=>{
     const tgs=mkTags(c);
-    const s=st(c.rating);
     const statusL=(c.status||'').toLowerCase().trim();
     const isOwn=statusL==='vip_own';
     const isVip=statusL==='vip';
@@ -462,7 +463,7 @@ function render(){
     return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
       +'<div class="cb">'+badge+'<div class="cn">'+E(cleanName(c.name))+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
-      +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+emailWarn+'</div>'
+      +'<div class="cr">'+emailWarn+'</div>'
       +'</div>';
   }).join('');
 }
@@ -545,7 +546,6 @@ function rD(c){
     +(host?'<a class="dl" href="'+E(c.website||'')+'" onclick="window.open(this.href);return false">'+E(host)+'</a>':'')
     +'</div>'
     +'<div class="ds">'
-    +'<div class="dst"><div class="dv" style="color:var(--amber);font-size:14px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг</div></div>'
     +(hasHist?'<div class="dst"><div class="dv">'+s.purchases_count+'</div><div class="dll">Закупок</div></div>':'')
     +(hasHist?'<div class="dst"><div class="dv" style="font-size:15px">'+(s.total_sum?fS(s.total_sum):'—')+'</div><div class="dll">Оборот</div></div>':'')
     +(c.founded_year?'<div class="dst"><div class="dv" style="font-size:15px">'+E(c.founded_year)+'</div><div class="dll">Основана</div></div>':'')
