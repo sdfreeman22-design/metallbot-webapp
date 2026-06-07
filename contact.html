@@ -101,6 +101,9 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 
 .dac{display:flex;gap:8px;padding:0 20px 16px}
 .dbtn{flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--green);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--green-dim);color:var(--green);font-family:var(--sans);letter-spacing:.5px}
+.dact-row{padding:0 20px 12px}
+.dbtn2{width:100%;padding:12px;border-radius:var(--r);border:1px solid var(--gold,#ffb040);font-size:14px;font-weight:600;cursor:pointer;background:rgba(255,176,64,.08);color:var(--gold,#ffb040);font-family:var(--sans);letter-spacing:.5px;transition:all .15s}
+.dbtn2:hover{background:rgba(255,176,64,.16)}.dbtn2:active{transform:scale(.98)}
 .dbtn:active{transform:scale(.97);opacity:.8}
 
 .dsec{padding:8px 20px 8px;font-family:var(--mono);font-size:11px;color:var(--ink4);text-transform:uppercase;letter-spacing:2px}
@@ -491,8 +494,9 @@ async function opD(encId){
 // ── Render detail ──────────────────────────────────────────────────────────
 function rD(c){
   const kn=LB[c.kind]||'';
-  const sr=st(c.stars);   // умные звёзды (реальные закупки)
+  const sr=st(c.stars);   // умные звёзды = активность в экосистеме
   const s=c.stats||{};
+  const ac=c.activity||{order:0,calc:0,resp:0,score:0,last:''};
   const hasHist=(c.history||[]).length>0;  // закупки показываем только при наличии истории
 
   const info=[
@@ -547,11 +551,15 @@ function rD(c){
     +'</div>'
     +'<div class="ds">'
     +(sr?'<div class="dst"><div class="dv" style="color:var(--amber);font-size:16px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг</div></div>':'')
+    +(ac.resp?'<div class="dst"><div class="dv">'+ac.resp+'</div><div class="dll">Откликов</div></div>':'')
+    +(ac.order?'<div class="dst"><div class="dv">'+ac.order+'</div><div class="dll">Заявок</div></div>':'')
+    +(ac.calc?'<div class="dst"><div class="dv">'+ac.calc+'</div><div class="dll">Просчётов</div></div>':'')
     +(hasHist?'<div class="dst"><div class="dv">'+s.purchases_count+'</div><div class="dll">Закупок</div></div>':'')
     +(hasHist?'<div class="dst"><div class="dv" style="font-size:15px">'+(s.total_sum?fS(s.total_sum):'—')+'</div><div class="dll">Оборот</div></div>':'')
     +(c.founded_year?'<div class="dst"><div class="dv" style="font-size:15px">'+E(c.founded_year)+'</div><div class="dll">Основана</div></div>':'')
     +(c.employees?'<div class="dst"><div class="dv" style="font-size:14px">'+E(c.employees)+'</div><div class="dll">Штат</div></div>':'')
     +'</div>'
+    +'<div class="dact-row"><button class="dbtn2" onclick="bumpAct(\'resp\')">✓ Отметить отклик / взял заказ</button></div>'
     +(c.phone?'<div class="dac"><button class="dbtn" onclick="haptic(\'medium\');window.open(\'tel:'+E(c.phone.replace(/\s/g,''))+'\')">📞 Позвонить</button></div>':'')
     +galHtml+desc+tagsH+certs+facts
     +(info?'<div class="dsec">Контакты</div><div class="dcd">'+info+'</div>':'')
@@ -665,6 +673,27 @@ async function dlC(){
     hapticNotify('error');
     alert('Ошибка удаления: '+e.message);
   }
+}
+
+// Отметить активность контрагента (ручной отклик менеджера) → пересчёт звёзд
+async function bumpAct(kind){
+  const c=window._c; if(!c) return; haptic('medium');
+  try{
+    const r=await fetch('/api/contact/'+encodeURIComponent(c.name)+'/activity',{
+      method:'POST',
+      headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({kind:kind,delta:1})
+    });
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'HTTP '+r.status);
+    hapticNotify('success');
+    await opD(encodeURIComponent(c.name));  // перезагрузить карточку (звёзды/счётчики)
+    load();                                  // обновить список (рейтинг/сортировка)
+    const msg=document.createElement('div');
+    msg.style.cssText='position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#1a1828;border:1px solid rgba(255,176,64,.3);color:#ffb040;padding:10px 20px;border-radius:6px;font-size:14px;font-family:var(--mono);z-index:9999;letter-spacing:.5px';
+    msg.textContent='✓ Отклик учтён · отклики: '+(d.counts&&d.counts.resp);
+    document.body.appendChild(msg); setTimeout(()=>msg.remove(),2500);
+  }catch(e){ hapticNotify('error'); alert('Ошибка: '+e.message); }
 }
 
 // Нормализует телефон: извлекает цифры → +7 (XXX) XXX-XX-XX

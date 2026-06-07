@@ -351,19 +351,97 @@ def _money(v) -> float:
     except ValueError:
         return 0.0
 
-def _attach_smart_stars(contacts: list[dict]) -> list[dict]:
-    """Звёзды контрагентов — по ВНУТРЕННЕЙ АКТИВНОСТИ в экосистеме
-    (заявки/заказы через бота, отклики на рассылки ТЗ/КП, использование калькулятора),
-    а НЕ по загруженным счетам-закупкам (прежний расчёт по листу «Закупки» признан
-    владельцем неверным по смыслу — это активность ВЛАДЕЛЬЦА, а не контрагента).
+# ── Звёзды по ВНУТРЕННЕЙ АКТИВНОСТИ в экосистеме ─────────────────────────────────
+# Источник — лист «Активность» (заполняет бот + кнопка «отметить отклик» в CRM):
+#   Карточка | Лист | Заявок | Просчётов | Откликов | Последняя_активность
+# Вес сигналов: отклик на рассылку/КП = самый ценный, заявка, затем калькулятор.
+ACT_SHEET = "Активность"
+ACT_HEADERS = ["Карточка", "Лист", "Заявок", "Просчётов", "Откликов", "Последняя_активность"]
+ACT_W = {"resp": 5, "order": 2, "calc": 1}
+ACT_KIND_COL = {"resp": "Откликов", "order": "Заявок", "calc": "Просчётов"}
 
-    Архитектура (в работе): активность фиксирует БОТ в users.json по uid → пишет в
-    лист «Активность» (ключ = привязанная карточка company_card.name); этот метод
-    читает «Активность» и начисляет звёзды перцентильно. Пока пайплайн не подключён —
-    звёзды НЕ начисляем (0★), чтобы не показывать неверные значения."""
+def _int(v) -> int:
+    try:
+        return int(float(_s(v).replace(" ", "").replace(",", ".") or 0))
+    except ValueError:
+        return 0
+
+def _activity_map() -> dict:
+    """{norm(card): {order,calc,resp,score,last}} из листа «Активность»."""
+    out: dict = {}
+    for r in _sheet_rows(ACT_SHEET):
+        name = _s(r.get("Карточка") or r.get("Контрагент") or r.get("Карточка_контрагента"))
+        if not name:
+            continue
+        o, cc, rp = _int(r.get("Заявок")), _int(r.get("Просчётов")), _int(r.get("Откликов"))
+        score = rp * ACT_W["resp"] + o * ACT_W["order"] + cc * ACT_W["calc"]
+        out[_norm(name)] = {"order": o, "calc": cc, "resp": rp, "score": score,
+                            "last": _s(r.get("Последняя_активность"))}
+    return out
+
+def _attach_smart_stars(contacts: list[dict]) -> list[dict]:
+    """Звёзды контрагентов = ВНУТРЕННЯЯ АКТИВНОСТЬ в экосистеме (заявки/заказы,
+    отклики на рассылки ТЗ/КП, использование калькулятора), а НЕ загруженные счета.
+    Перцентильная шкала среди контрагентов с активностью (0★ если активности нет)."""
+    import bisect
+    act = _activity_map()
     for c in contacts:
+        a = act.get(_norm(c.get("name") or ""))
+        c["activity"] = a or {"order": 0, "calc": 0, "resp": 0, "score": 0, "last": ""}
         c["stars"] = 0
+    rated = [c for c in contacts if c["activity"]["score"] > 0]
+    m = len(rated)
+    if m:
+        keys = sorted(c["activity"]["score"] for c in rated)
+        for c in rated:
+            le = bisect.bisect_right(keys, c["activity"]["score"])
+            q = le / m
+            c["stars"] = 5 if q >= 0.85 else 4 if q >= 0.65 else 3 if q >= 0.35 else 2 if q >= 0.15 else 1
     return contacts
+
+def _activity_bump(card_name: str, kind: str, sheet: str = "", delta: int = 1) -> dict:
+    """Увеличивает счётчик активности kind ('resp'|'order'|'calc') для карточки в
+    листе «Активность» (upsert). Создаёт лист при отсутствии. Возвращает новые счётчики."""
+    col = ACT_KIND_COL.get(kind)
+    if not col:
+        raise HTTPException(400, f"Неизвестный тип активности: {kind}")
+    ss = _get_spreadsheet()
+    try:
+        ws = ss.worksheet(ACT_SHEET)
+    except Exception:
+        ws = ss.add_worksheet(title=ACT_SHEET, rows=200, cols=len(ACT_HEADERS))
+        ws.update(values=[ACT_HEADERS], range_name="A1")
+    vals = ws.get_all_values()
+    headers = vals[0] if vals else ACT_HEADERS
+    cidx = {h: i for i, h in enumerate(headers)}
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    row_idx = None
+    for i, row in enumerate(vals[1:], start=2):
+        nm = row[cidx["Карточка"]].strip() if "Карточка" in cidx and len(row) > cidx["Карточка"] else ""
+        if nm.lower() == card_name.lower():
+            row_idx = i
+            break
+    if row_idx is None:
+        new = {"Карточка": card_name, "Лист": sheet, "Заявок": 0, "Просчётов": 0,
+               "Откликов": 0, "Последняя_активность": now}
+        new[col] = max(0, delta)
+        ws.append_row([new.get(h, "") for h in ACT_HEADERS], value_input_option="RAW")
+        counts = {"order": new["Заявок"], "calc": new["Просчётов"], "resp": new["Откликов"]}
+    else:
+        cur = vals[row_idx - 1]
+        def g(h):
+            return cur[cidx[h]] if h in cidx and len(cur) > cidx[h] else ""
+        counts = {"order": _int(g("Заявок")), "calc": _int(g("Просчётов")), "resp": _int(g("Откликов"))}
+        kmap = {"Заявок": "order", "Просчётов": "calc", "Откликов": "resp"}[col]
+        counts[kmap] = max(0, counts[kmap] + delta)
+        ws.update_cell(row_idx, cidx[col] + 1, counts[kmap])
+        if "Последняя_активность" in cidx:
+            ws.update_cell(row_idx, cidx["Последняя_активность"] + 1, now)
+        if "Лист" in cidx and sheet and not g("Лист"):
+            ws.update_cell(row_idx, cidx["Лист"] + 1, sheet)
+    _cache.pop(ACT_SHEET, None)   # сбросить кэш, чтобы звёзды пересчитались
+    _dirty_sheets.add(ACT_SHEET)
+    return counts
 
 # ── API routes ────────────────────────────────────────────────────────────────
 def _sort_key(c: dict) -> tuple:
@@ -573,6 +651,26 @@ def api_contact_update(contact_id: str, body: ContactUpdate, _auth: dict = Depen
         raise HTTPException(404, f"Компания не найдена: {contact_id}")
 
     return {"ok": True, "updated": updated_sheets}
+
+
+class ActivityBump(BaseModel):
+    kind: str = "resp"   # 'resp' | 'order' | 'calc'
+    delta: int = 1
+
+@app.post("/api/contact/{contact_id:path}/activity")
+def api_contact_activity(contact_id: str, body: ActivityBump, _auth: dict = Depends(require_manager)):
+    """Отметить активность контрагента в экосистеме (ручная отметка отклика менеджером
+    + точка для авто-сигналов бота). Пишет в лист «Активность», звёзды пересчитаются."""
+    items = _load_contacts()
+    target = next((x for x in items
+                   if x["id"].lower() == contact_id.lower() or x["name"].lower() == contact_id.lower()),
+                  None)
+    if not target:
+        raise HTTPException(404, f"Не найден: {contact_id}")
+    sheet = {"coop": "Кооперация", "supplier": "Поставщики", "both": "Кооперация"}.get(target.get("kind"), "")
+    counts = _activity_bump(target["name"], body.kind, sheet=sheet, delta=body.delta)
+    score = counts["resp"] * ACT_W["resp"] + counts["order"] * ACT_W["order"] + counts["calc"] * ACT_W["calc"]
+    return {"ok": True, "name": target["name"], "counts": counts, "score": score}
 
 
 @app.delete("/api/contact/{contact_id:path}")
