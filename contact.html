@@ -175,7 +175,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
   <div class="sw"><input class="si" id="si" type="search" placeholder="Поиск контрагента..." autocomplete="off"></div>
   <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span></div>
   <div class="fl" id="ops-row" style="padding-top:2px"></div>
-  <div class="fl" id="mat-row" style="padding-top:2px"></div>
+  <div class="fl" id="mat-row" style="padding-top:2px;display:none"></div>
   <div id="list"></div>
   <div id="det"></div>
   <!-- lightbox -->
@@ -663,6 +663,17 @@ document.querySelectorAll('.chip').forEach(function(ch){
     opQ='';
     const opsAll=document.querySelector('#ops-row .chip[data-op=""]');
     if(opsAll) opsAll.classList.add('on');
+    // Чипы материалов — только для поставщиков (в кооперации толку нет)
+    const mr=$('mat-row');
+    if(aK==='supplier'){
+      if(mr) mr.style.display='';
+    }else{
+      if(mr) mr.style.display='none';
+      matQ='';
+      document.querySelectorAll('#mat-row .chip').forEach(c=>c.classList.remove('on'));
+      const matAll=document.querySelector('#mat-row .chip[data-mat=""]');
+      if(matAll) matAll.classList.add('on');
+    }
     render();
   });
 });
