@@ -206,8 +206,8 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
     <div class="field">
       <label>Режим</label>
       <div class="chrow" id="modeRow">
-        <button class="chip2 md"    data-mode="el"    onclick="selMode(this)">Элемент</button>
-        <button class="chip2 md on" data-mode="fit"   onclick="selMode(this)">Посадка</button>
+        <button class="chip2 md on" data-mode="el"    onclick="selMode(this)">Элемент</button>
+        <button class="chip2 md"    data-mode="fit"   onclick="selMode(this)">Посадка</button>
         <button class="chip2 md"    data-mode="use"   onclick="selMode(this)">Подбор ⚡</button>
       </div>
     </div>
@@ -218,7 +218,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
     </div>
 
     <!-- режим: посадка -->
-    <div id="blkFit">
+    <div id="blkFit" style="display:none">
       <div class="subh hole"><span class="dot"></span>Отверстие</div>
       <div class="elrow hole">
         <select class="inp" id="hLet" onchange="autoCalc()"></select>
@@ -235,7 +235,7 @@ select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
     </div>
 
     <!-- режим: один элемент -->
-    <div id="blkEl" style="display:none">
+    <div id="blkEl">
       <div class="field">
         <label>Тип элемента</label>
         <div class="chrow" id="elTypeRow">
@@ -408,7 +408,7 @@ function applyUse(i){
 }
 
 /* ────────── режимы ────────── */
-var mode='fit', elType='hole';
+var mode='el', elType='hole';   // по умолчанию активен «Элемент»
 function selMode(b){
   [].forEach.call(document.querySelectorAll('#modeRow .chip2'),function(x){x.classList.remove('on');});
   b.classList.add('on'); mode=b.dataset.mode; haptic('light');
