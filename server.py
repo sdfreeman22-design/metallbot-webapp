@@ -320,7 +320,7 @@ def _load_contacts() -> list[dict]:
         if key not in seen:
             contacts.append(c)
 
-    return contacts
+    return _attach_smart_stars(contacts)
 
 def _purchase_history(supplier: str) -> list[dict]:
     if not supplier:
@@ -343,6 +343,54 @@ def _purchase_history(supplier: str) -> list[dict]:
     out.sort(key=lambda x: x["date"], reverse=True)
     return out[:30]
 
+def _money(v) -> float:
+    """Парсит сумму ('540 000', '540000,50', '12 300 ₽') в float."""
+    s = _s(v).replace("\xa0", "").replace(" ", "").replace("₽", "").replace(",", ".")
+    try:
+        return float(s) if s and s not in ("-",) else 0.0
+    except ValueError:
+        return 0.0
+
+def _attach_smart_stars(contacts: list[dict]) -> list[dict]:
+    """Умное начисление звёзд (схема B — РЕАЛЬНОЕ сотрудничество).
+
+    Звёзды = доказанный трек закупок из листа «Закупки» (кол-во + оборот).
+    Перцентильная шкала среди контрагентов, у кого ЕСТЬ реальные сделки:
+    автоматически подстраивается под масштаб данных, без «магических» порогов.
+    У кого сделок нет (большинство кооператоров пока) → 0★ (не показываем).
+    Будущие сигналы (отклики на рассылки, выполненные заказы) добавим сюда же."""
+    # 1) агрегируем закупки по строке-поставщику один раз
+    agg: dict[str, list] = {}
+    for r in _sheet_rows("Закупки"):
+        sup = _s(r.get("Поставщик")).lower().strip()
+        if not sup:
+            continue
+        a = agg.setdefault(sup, [0, 0.0])
+        a[0] += 1
+        a[1] += _money(r.get("Сумма"))
+    sup_items = list(agg.items())
+    # 2) для каждого контакта — суммарные сделки (матч по вхождению имени)
+    for c in contacts:
+        n = (c.get("name") or "").lower().strip()
+        cnt, tot = 0, 0.0
+        if n:
+            for sup, (k, s) in sup_items:
+                if n in sup:
+                    cnt += k
+                    tot += s
+        c["deal_count"] = cnt
+        c["deal_sum"] = round(tot, 2)
+        c["stars"] = 0
+    # 3) перцентильные звёзды среди тех, у кого есть сделки (оборот → потом кол-во)
+    rated = [c for c in contacts if c["deal_count"] > 0]
+    m = len(rated)
+    if m:
+        rated.sort(key=lambda c: (c["deal_sum"], c["deal_count"]))
+        for i, c in enumerate(rated):
+            q = i / m if m > 1 else 1.0   # доля контрагентов «ниже» данного
+            c["stars"] = 5 if q >= 0.85 else 4 if q >= 0.65 else 3 if q >= 0.35 else 2 if q >= 0.15 else 1
+    return contacts
+
 # ── API routes ────────────────────────────────────────────────────────────────
 def _sort_key(c: dict) -> tuple:
     """vip_own=0, vip=1, остальные=2; внутри группы — по рейтингу убыв."""
@@ -354,7 +402,7 @@ def _sort_key(c: dict) -> tuple:
     else:
         tier = 2
     try:
-        rat = -float(c.get("rating") or 0)
+        rat = -float(c.get("stars") or 0)   # умные звёзды (реальные закупки)
     except Exception:
         rat = 0
     return (tier, rat)

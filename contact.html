@@ -188,7 +188,6 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
     <div class="ef"><label class="ef-hint">Оборудование <span>🔍 используется в поиске</span></label><textarea id="eeq" rows="2" placeholder="Токарные ЧПУ, Фрезерные, Долбёжный..."></textarea></div>
     <div class="ef"><label class="ef-hint">Материалы <span>🔍 используется в поиске</span></label><textarea id="emat" rows="2" placeholder="Сталь, Нержавейка, Алюминий..."></textarea></div>
     <div class="ef"><label>Статус</label><select id="est"><option value="">—</option><option value="vip_own">✦ Наше предприятие</option><option value="vip">★ VIP-партнёр</option><option value="Активный">Активный</option><option value="Проверяется">Проверяется</option><option value="Неактивный">Неактивный</option><option value="Заблокирован">Заблокирован</option></select></div>
-    <div class="ef"><label>Рейтинг</label><select id="er"><option value="">—</option><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select></div>
     <div class="ef"><label>Заметки</label><input id="en" type="text" placeholder="Комментарий..."></div>
     <div class="ebs"><button class="ecn" onclick="clEm()">Отмена</button><button class="esv" id="svBtn" onclick="svC()">Сохранить</button></div>
   </div></div>
@@ -451,6 +450,7 @@ function render(){
   }
   el.innerHTML=f.map((c,i)=>{
     const tgs=mkTags(c);
+    const s=st(c.stars);   // умные звёзды (реальные закупки)
     const statusL=(c.status||'').toLowerCase().trim();
     const isOwn=statusL==='vip_own';
     const isVip=statusL==='vip';
@@ -463,7 +463,7 @@ function render(){
     return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
       +'<div class="cb">'+badge+'<div class="cn">'+E(cleanName(c.name))+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
-      +'<div class="cr">'+emailWarn+'</div>'
+      +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+emailWarn+'</div>'
       +'</div>';
   }).join('');
 }
@@ -491,7 +491,7 @@ async function opD(encId){
 // ── Render detail ──────────────────────────────────────────────────────────
 function rD(c){
   const kn=LB[c.kind]||'';
-  const sr=st(c.rating)||'—';
+  const sr=st(c.stars);   // умные звёзды (реальные закупки)
   const s=c.stats||{};
   const hasHist=(c.history||[]).length>0;  // закупки показываем только при наличии истории
 
@@ -546,6 +546,7 @@ function rD(c){
     +(host?'<a class="dl" href="'+E(c.website||'')+'" onclick="window.open(this.href);return false">'+E(host)+'</a>':'')
     +'</div>'
     +'<div class="ds">'
+    +(sr?'<div class="dst"><div class="dv" style="color:var(--amber);font-size:16px;letter-spacing:2px">'+sr+'</div><div class="dll">Рейтинг</div></div>':'')
     +(hasHist?'<div class="dst"><div class="dv">'+s.purchases_count+'</div><div class="dll">Закупок</div></div>':'')
     +(hasHist?'<div class="dst"><div class="dv" style="font-size:15px">'+(s.total_sum?fS(s.total_sum):'—')+'</div><div class="dll">Оборот</div></div>':'')
     +(c.founded_year?'<div class="dst"><div class="dv" style="font-size:15px">'+E(c.founded_year)+'</div><div class="dll">Основана</div></div>':'')
@@ -631,7 +632,6 @@ function opE(){
   $('eeq').value=(c.equipment_list&&c.equipment_list.length?c.equipment_list.join(', '):c.equipment||'');
   $('emat').value=(c.materials_list&&c.materials_list.length?c.materials_list.join(', '):c.materials||'');
   $('est').value=c.status||'';
-  $('er').value=c.rating||'';
   $('en').value=c.notes||'';
   $('em').classList.add('open');
   window.NavBack&&NavBack.refresh();
@@ -693,7 +693,6 @@ async function svC(){
   if(v('eeq')) body.equipment=v('eeq');
   if(v('emat')) body.materials=v('emat');
   if(v('est')) body.status=v('est');
-  if(v('er')) body.rating=v('er');
   if(v('en')) body.notes=v('en');
 
   btn.textContent='Сохраняю...';
