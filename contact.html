@@ -354,7 +354,25 @@ function skL(n=6){return Array.from({length:n},()=>'<div class="skc"><div style=
 function skD(){return'<div class="dsk"><div class="dsk-h"><div class="sk sk-l w7" style="height:18px;margin-bottom:10px"></div><div class="sk sk-l w4"></div></div><div class="dsk-s"><div class="sk dsk-st"></div><div class="sk dsk-st"></div><div class="sk dsk-st"></div></div><div class="sk dsk-b"></div><div class="sk dsk-b" style="height:100px"></div></div>'}
 
 // ── Операционные чипы ─────────────────────────────────────────────────────
-let opQ = ''; // текущий фильтр по операции
+// Ключи операций — ДОЛЖНЫ совпадать с OP_KW_LIST в server.py (счётчик чипов).
+const OP_KW={
+  'токарная':['токарн','токарк','lathe'],
+  'фрезерная':['фрезер','milling'],
+  'шлифовальная':['шлифов','шлифовк','grinding'],
+  'сверлильно-расточная':['сверл','расточ'],
+  'термообработка':['термо','закалк','отжиг','улучшение','heat'],
+  'покрытие':['покрыт','гальван','цинков','хромиров','никелир','анодир'],
+  'порошковая покраска':['порошк','покрас'],
+  'сварка':['сварк','сварочн','welding'],
+  'лазерная резка':['лазерн','laser'],
+  'плазменная резка':['плазм'],
+  'гибка':['гибк','гнут'],
+  'штамповка':['штамп','прессов','stamp'],
+  'литьё':['литьё','литья','литейн','casting'],
+  'слесарная':['слесарн','слесарк'],
+  'электроэрозионная':['эрозионн','электроэроз','wire','edm'],
+};
+let opQ = ''; // текущий фильтр по операции (label в нижнем регистре)
 async function loadOps(){
   try{
     const r = await fetch('/api/operations');
@@ -416,10 +434,11 @@ function render(){
   const q=sQ.toLowerCase();
   const f=A.filter(c=>{
     if(aK && c.kind!==aK) return false;
-    // Фильтр по операции (чип)
+    // Фильтр по операции (чип) — по ключам, как на сервере; учитываем и название
     if(opQ){
-      const txt=[c.service,c.equipment,c.specialization,c.materials,c.notes].join(' ').toLowerCase();
-      if(!txt.includes(opQ)) return false;
+      const kws=OP_KW[opQ]||[opQ];
+      const txt=[c.name,c.service,c.equipment,c.specialization,c.materials,c.notes].join(' ').toLowerCase();
+      if(!kws.some(k=>txt.includes(k))) return false;
     }
     return !q || [c.name,c.city,c.specialization,c.service,c.materials,c.equipment,c.notes].some(s=>(s||'').toLowerCase().includes(q));
   });
