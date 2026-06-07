@@ -381,13 +381,17 @@ def _attach_smart_stars(contacts: list[dict]) -> list[dict]:
         c["deal_count"] = cnt
         c["deal_sum"] = round(tot, 2)
         c["stars"] = 0
-    # 3) перцентильные звёзды среди тех, у кого есть сделки (оборот → потом кол-во)
+    # 3) перцентильные звёзды среди тех, у кого есть сделки (оборот → потом кол-во).
+    #    Доля «не выше» (top-inclusive): лучший контрагент всегда достигает 5★,
+    #    а одинаковые сделки получают ОДИНАКОВЫЕ звёзды (через bisect_right по тай-ключу).
+    import bisect
     rated = [c for c in contacts if c["deal_count"] > 0]
     m = len(rated)
     if m:
-        rated.sort(key=lambda c: (c["deal_sum"], c["deal_count"]))
-        for i, c in enumerate(rated):
-            q = i / m if m > 1 else 1.0   # доля контрагентов «ниже» данного
+        keys = sorted((c["deal_sum"], c["deal_count"]) for c in rated)
+        for c in rated:
+            le = bisect.bisect_right(keys, (c["deal_sum"], c["deal_count"]))  # сколько ≤ данного
+            q = le / m
             c["stars"] = 5 if q >= 0.85 else 4 if q >= 0.65 else 3 if q >= 0.35 else 2 if q >= 0.15 else 1
     return contacts
 
