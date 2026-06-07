@@ -84,4 +84,32 @@
   refresh();
   window.addEventListener('pageshow', refresh);
   window.addEventListener('pageshow', syncMainButton);
+
+  // ── Доступ к модулям по роли ────────────────────────────────────────────────
+  // Роль приходит от бота через ?r=<role> и хранится на сессию мини-аппа.
+  // Кооперация (/), Металл (/calc*.html), Документы (/docs.html) — только
+  // manager/admin. Допуски (/tolerances.html) — всем ролям (бесплатная справка).
+  // Гейтим именно НАВИГАЦИЮ: лишние ссылки прячем, в оставшихся пробрасываем роль,
+  // чтобы доступ сохранялся при переходах. (Защита данных — на API-эндпоинтах.)
+  var ROLE = '';
+  try {
+    var _qr = new URLSearchParams(location.search).get('r');
+    if (_qr) sessionStorage.setItem('mb_role', _qr);
+    ROLE = sessionStorage.getItem('mb_role') || '';
+  } catch (e) {}
+  var FULL = (ROLE === 'manager' || ROLE === 'admin');
+  function gateNav() {
+    var links = document.querySelectorAll('.nav a, .nav-links a');
+    for (var i = 0; i < links.length; i++) {
+      var a = links[i], href = a.getAttribute('href') || '';
+      var isTol = href.indexOf('tolerances') >= 0;   // Допуски — всем
+      if (!isTol && !FULL) { a.style.display = 'none'; continue; }
+      if (ROLE && href && href.charAt(0) === '/' && href.indexOf('r=') < 0) {
+        a.setAttribute('href', href + (href.indexOf('?') >= 0 ? '&' : '?') + 'r=' + encodeURIComponent(ROLE));
+      }
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', gateNav);
+  else gateNav();
+  window.addEventListener('pageshow', gateNav);
 })();
