@@ -287,18 +287,47 @@ def _norm(s: str) -> str:
     import re
     return re.sub(r'[^\w]', '', s.lower(), flags=re.UNICODE)
 
-def _parsed_data() -> dict[str, dict]:
-    """Читает лист 'Парсинг' → dict {normalized_name: data}."""
+def _dom(u: str) -> str:
+    """Домен из URL/строки: 'https://www.X.ru/price?y' → 'x.ru'. Для связи карточки с парсингом."""
+    import re
+    u = (u or "").strip().lower()
+    if not u:
+        return ""
+    u = re.sub(r'^https?://', '', u)
+    u = re.sub(r'^www\.', '', u)
+    return u.split('/')[0].split('?')[0].split('#')[0].strip()
+
+# бесплатные почтовые домены — по ним связывать НЕЛЬЗЯ (это не сайт компании)
+_FREE_EMAIL = {"mail.ru", "gmail.com", "yandex.ru", "ya.ru", "bk.ru", "inbox.ru",
+               "list.ru", "rambler.ru", "outlook.com", "icloud.com", "internet.ru",
+               "mail.com", "hotmail.com", "yahoo.com"}
+
+def _email_dom(e: str) -> str:
+    """Домен из e-mail, кроме бесплатных провайдеров: 'info@x.ru' → 'x.ru', 'a@mail.ru' → ''."""
+    e = (e or "").strip().lower()
+    if "@" not in e:
+        return ""
+    d = e.split("@")[-1].split()[0].strip()
+    return "" if d in _FREE_EMAIL else d
+
+def _parsed_data() -> tuple[dict, dict]:
+    """Лист 'Парсинг' → (by_name {norm(Компания): row}, by_domain {домен(Сайт): row}).
+    Два индекса, т.к. имена карточек переименовывались (чистка/восстановление), а домен
+    сайта стабилен — связь по домену возвращает парсинг сотням карточек со сменённым именем."""
+    by_name: dict = {}
+    by_dom: dict = {}
     try:
         rows = _sheet_rows("Парсинг")
-        result = {}
-        for row in rows:
-            name = _s(row.get("Компания", ""))
-            if name:
-                result[_norm(name)] = row
-        return result
     except Exception:
-        return {}
+        return by_name, by_dom
+    for row in rows:
+        name = _s(row.get("Компания", ""))
+        if name:
+            by_name.setdefault(_norm(name), row)
+        d = _dom(_s(row.get("Сайт", "")))
+        if d:
+            by_dom.setdefault(d, row)
+    return by_name, by_dom
 
 
 def _load_contacts() -> list[dict]:
@@ -500,9 +529,20 @@ def api_contact(contact_id: str):
     if not target:
         raise HTTPException(404, f"Не найден: {contact_id}")
 
-    # Добавляем парсинговые данные из листа "Парсинг"
-    parsed = _parsed_data()
-    p = parsed.get(_norm(target["name"]), {})
+    # Добавляем парсинговые данные из листа "Парсинг".
+    # Связь: по имени → по домену сайта → по домену e-mail (имена карточек
+    # переименовывались при чистке, а домен стабилен — иначе карточка теряет
+    # описание/фото/услуги и выглядит «минимальной»).
+    by_name, by_dom = _parsed_data()
+    p = by_name.get(_norm(target["name"]), {})
+    if not p:
+        d = _dom(target.get("website", ""))
+        if d:
+            p = by_dom.get(d, {})
+    if not p:
+        ed = _email_dom(target.get("email", ""))
+        if ed:
+            p = by_dom.get(ed, {})
     target["description"]    = _s(p.get("Описание_парс", ""))
     target["services_list"]  = _split(p.get("Услуги_парс", ""))
     target["equipment_list"] = _split(p.get("Оборудование_парс", ""))
