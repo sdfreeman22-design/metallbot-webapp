@@ -1329,6 +1329,8 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
         for col_name in needed:
             if col_name not in col_map:
                 new_idx = len(col_map) + 1
+                if new_idx > ws.col_count:               # колонок меньше, чем нужно → расширяем (как строки ниже)
+                    ws.add_cols(new_idx - ws.col_count + 5)
                 ws.update_cell(1, new_idx, col_name)
                 col_map[col_name] = new_idx
 
@@ -1394,6 +1396,10 @@ def save_to_sheets(result: "ParseResult", sheet_name: str) -> bool:
             for col, val in updates.items()
             if col in col_map
         ]
+        # колонки авто-расширяем (как строки выше) — иначе Range '!AN' exceeds grid limits (было ×3)
+        max_col = max((c.col for c in cells), default=0)
+        if max_col > ws.col_count:
+            ws.add_cols(max_col - ws.col_count + 5)
         ws.update_cells(cells, value_input_option="RAW")
         logger.info("[sheets] Записано %d ячеек для '%s' в лист '%s'",
                     len(cells), result.company_name, PARSED_SHEET)
