@@ -183,6 +183,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 
   <div id="em"><div class="es">
     <h2>Редактировать</h2>
+    <div class="ef"><label>Название организации</label><input id="enm" type="text" placeholder="ООО «...» / АО «...»"></div>
     <div class="ef"><label>Телефон</label><input id="ep" type="tel" placeholder="+7 (XXX) XXX-XX-XX"></div>
     <div class="ef"><label>Email</label><input id="ee" type="email" placeholder="info@company.ru"></div>
     <div class="ef"><label>Город</label><input id="ec" type="text" placeholder="Москва"></div>
@@ -684,6 +685,7 @@ function opE(){
   const c=window._c;
   if(!c)return;
   haptic('light');
+  $('enm').value=c.name||'';
   $('ep').value=c.phone||'';
   $('ee').value=c.email||'';
   $('ec').value=c.city||'';
@@ -777,6 +779,8 @@ async function svC(){
   const btn=$('svBtn');
   const v=id=>$(id).value.trim();
   const body={};
+  const nm=v('enm');
+  if(nm && nm!==c.name) body.name=nm;          // переименование (ключ карточки)
   if(v('ep')) body.phone=cleanPhone(v('ep'));
   if(v('ee')) body.email=v('ee');
   if(v('ec')) body.city=v('ec');
@@ -799,8 +803,10 @@ async function svC(){
     if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'HTTP '+r.status)}
     hapticNotify('success');
     clEm();
-    // Перезагружаем карточку
-    await opD(encodeURIComponent(c.name));
+    // Перезагружаем карточку (если переименовали — по НОВОМУ имени, иначе ключ устарел)
+    const newName = body.name || c.name;
+    await opD(encodeURIComponent(newName));
+    if(body.name) load();   // имя изменилось → обновить список (новое имя/сортировка)
   }catch(e){
     hapticNotify('error');
     alert('Ошибка сохранения: '+e.message);

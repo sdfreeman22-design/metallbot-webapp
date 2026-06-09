@@ -541,6 +541,7 @@ def api_contact(contact_id: str):
     return target
 
 class ContactUpdate(BaseModel):
+    name:           Optional[str] = None   # переименование карточки (ключ /api/contact/<name>)
     phone:          Optional[str] = None
     email:          Optional[str] = None
     city:           Optional[str] = None
@@ -555,6 +556,7 @@ class ContactUpdate(BaseModel):
 
 # Маппинг поля → возможные названия колонок в листах
 _FIELD_COLS: dict[str, list[str]] = {
+    "name":           ["Название", "Поставщик", "Компания"],   # переименование — в существующую колонку имени
     "phone":          ["Телефон"],
     "email":          ["Email"],
     "city":           ["Город"],
