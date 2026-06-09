@@ -439,7 +439,7 @@ function setMat(el, mat){
 async function load(){
   $('list').innerHTML = skL();
   try{
-    const r = await fetch('/api/contacts');
+    const r = await fetch('/api/contacts?_='+Date.now(), {cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d = await r.json();
     A = Array.isArray(d) ? d : (d.items || []);
@@ -716,8 +716,9 @@ async function dlC(){
     if(!r.ok) throw new Error(data.detail||'Ошибка');
     hapticNotify('success');
     clD();
-    // Убираем карточку из списка без перезагрузки
-    window._contacts=(window._contacts||[]).filter(x=>x.name!==c.name);
+    // Убираем карточку из списка без перезагрузки (рендер читает массив A!)
+    A = A.filter(x=>x.name!==c.name);
+    $('hc').textContent = A.length;
     render();
     // Небольшое уведомление
     const msg=document.createElement('div');

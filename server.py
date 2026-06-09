@@ -515,7 +515,10 @@ def api_contacts(q: str = "", kind: str = ""):
                  or n in (x.get("phone") or "").lower()
                  or n in (x.get("contact") or "").lower()]
     items.sort(key=_sort_key)
-    return {"items": items, "total": len(items)}
+    return JSONResponse(
+        {"items": items, "total": len(items)},
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
 
 @app.get("/api/contact/{contact_id:path}")
 def api_contact(contact_id: str):
