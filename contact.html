@@ -89,7 +89,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 
 .dh{padding:24px 20px 20px;position:relative;border-bottom:1px solid var(--border)}
 .dh::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red-glow),transparent)}
-.dn{font-size:22px;font-weight:800;line-height:1.2;letter-spacing:.2px;margin-top:36px}
+.dn{font-size:22px;font-weight:800;line-height:1.2;letter-spacing:.2px}
 .dk{font-family:var(--mono);font-size:15px;color:var(--red);margin-top:6px;text-transform:uppercase;letter-spacing:2px}
 .dc{font-size:16px;color:var(--ink3);margin-top:3px}
 .dl{font-family:var(--mono);font-size:15px;color:var(--ink2);text-decoration:none;margin-top:6px;display:inline-block;letter-spacing:.5px;opacity:.7;border-bottom:1px solid var(--ink4);padding-bottom:1px}
@@ -125,11 +125,12 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .dbdg{display:inline-flex;align-items:center;gap:4px;margin:4px 20px 14px;font-family:var(--mono);font-size:14px;color:var(--ink4);letter-spacing:1px}
 .empty{text-align:center;padding:60px 24px;color:var(--ink3)}.empty-i{font-size:32px;margin-bottom:16px;opacity:.4}.empty p{font-size:17px;letter-spacing:.3px}
 
-.bb{position:absolute;top:24px;left:20px;z-index:10;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:17px;padding:6px 14px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
+.dbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.bb{margin-right:auto;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:17px;padding:6px 14px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
 .bb:active{color:var(--red);border-color:var(--red)}
-.be{position:absolute;top:24px;right:20px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:16px;padding:6px 12px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
+.be{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--ink2);font-size:16px;padding:6px 12px;cursor:pointer;font-family:var(--sans);font-weight:600;transition:all .15s}
 .be:active{color:var(--red);border-color:var(--red)}
-.bdl{position:absolute;top:60px;right:20px;background:rgba(255,20,100,.08);border:1px solid rgba(255,20,100,.25);border-radius:var(--r);color:var(--red);font-size:15px;padding:5px 10px;cursor:pointer;font-family:var(--mono);font-weight:600;letter-spacing:.5px;transition:all .15s}
+.bdl{background:rgba(255,20,100,.08);border:1px solid rgba(255,20,100,.25);border-radius:var(--r);color:var(--red);font-size:15px;padding:5px 10px;cursor:pointer;font-family:var(--mono);font-weight:600;letter-spacing:.5px;transition:all .15s}
 .bdl:active{background:rgba(255,20,100,.2)}
 
 #em{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,6,12,.7);align-items:flex-end;justify-content:center;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
@@ -585,9 +586,11 @@ function rD(c){
 
   $('det').innerHTML=
     '<div style="padding-top:env(safe-area-inset-top)"><div class="dh">'
+    +'<div class="dbar">'
     +'<button class="bb" onclick="clD()">‹ Назад</button>'
     +'<button class="be" onclick="opE()">✎ Изменить</button>'
     +(isAdmin()?'<button class="bdl" onclick="dlC()">✕ Удалить</button>':'')
+    +'</div>'
     +'<div class="dn">'+E(cleanName(c.name))+'</div>'
     +'<div class="dk">'+E(kn)+'</div>'
     +'<div class="dc">'+E(c.city||'')+'</div>'
