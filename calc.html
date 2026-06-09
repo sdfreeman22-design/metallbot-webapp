@@ -17,7 +17,7 @@
   --accent: #C8124E;
   --gold:   #FFB040;
   --text:   #E8E0F4;
-  --muted:  #6B5F80;
+  --muted:  #9286ac;
   --green:  #28C76F;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -30,7 +30,7 @@ header {
 header h1 { font-size:18px; font-weight:700; }
 .nav-links { margin-left:auto; display:flex; gap:10px; }
 .nav-links a {
-  color:var(--muted); font-size:15px; text-decoration:none;
+  color:var(--muted); font-size:17px; text-decoration:none;
   padding:5px 12px; border:1px solid var(--border); border-radius:14px;
   transition:color .15s, border-color .15s;
 }
@@ -47,13 +47,13 @@ header h1 { font-size:18px; font-weight:700; }
   background:var(--card); border:1px solid var(--border);
   border-radius:14px; padding:20px;
 }
-.panel h2 { font-size:16px; font-weight:700; margin-bottom:16px; color:var(--gold); }
+.panel h2 { font-size:17px; font-weight:700; margin-bottom:16px; color:var(--gold); }
 
 .field { margin-bottom:14px; }
-.field label { display:block; font-size:14px; color:var(--muted); margin-bottom:5px; letter-spacing:.04em; }
+.field label { display:block; font-size:16px; color:var(--muted); margin-bottom:5px; letter-spacing:.04em; }
 .field input[type=number] {
   width:100%; background:#2A2040; border:1px solid var(--border);
-  border-radius:8px; padding:9px 12px; color:var(--text); font-size:16px; outline:none;
+  border-radius:8px; padding:9px 12px; color:var(--text); font-size:17px; outline:none;
   transition:border-color .15s;
 }
 .field input:focus { border-color:var(--gold); }
@@ -62,7 +62,7 @@ header h1 { font-size:18px; font-weight:700; }
 .mat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .mat-btn {
   padding:9px 6px; border-radius:9px; border:2px solid var(--border);
-  background:transparent; color:var(--muted); font-size:15px; font-weight:600;
+  background:transparent; color:var(--muted); font-size:17px; font-weight:600;
   cursor:pointer; text-align:center; transition:all .15s; line-height:1.3;
 }
 .mat-btn:hover { border-color:var(--gold); color:var(--gold); }
@@ -72,7 +72,7 @@ header h1 { font-size:18px; font-weight:700; }
 .complex-row { display:flex; gap:8px; }
 .cx-btn {
   flex:1; padding:8px 4px; border-radius:8px; border:2px solid var(--border);
-  background:transparent; color:var(--muted); font-size:14px; font-weight:600;
+  background:transparent; color:var(--muted); font-size:16px; font-weight:600;
   cursor:pointer; text-align:center; transition:all .15s;
 }
 .cx-btn:hover { border-color:var(--blue, #4EA8DE); color:#4EA8DE; }
@@ -81,7 +81,7 @@ header h1 { font-size:18px; font-weight:700; }
 .calc-btn {
   width:100%; margin-top:16px;
   padding:12px; border-radius:10px; border:none; cursor:pointer;
-  background:var(--accent); color:#fff; font-size:16px; font-weight:700;
+  background:var(--accent); color:#fff; font-size:17px; font-weight:700;
   letter-spacing:.04em; transition:opacity .15s, transform .1s;
 }
 .calc-btn:hover { opacity:.88; }
@@ -97,9 +97,9 @@ header h1 { font-size:18px; font-weight:700; }
   background:var(--card); border:1px solid var(--border);
   border-radius:10px; padding:12px;
 }
-.info-card .lbl { font-size:13px; color:var(--muted); margin-bottom:4px; }
+.info-card .lbl { font-size:15px; color:var(--muted); margin-bottom:4px; }
 .info-card .val { font-size:20px; font-weight:700; color:var(--gold); }
-.info-card .unit { font-size:14px; color:var(--muted); margin-left:3px; }
+.info-card .unit { font-size:16px; color:var(--muted); margin-left:3px; }
 
 /* Таблица тиражей */
 .tiers-card {
@@ -108,10 +108,10 @@ header h1 { font-size:18px; font-weight:700; }
 }
 .tiers-card table { width:100%; border-collapse:collapse; }
 .tiers-card th {
-  background:#2A2040; font-size:13px; color:var(--muted);
+  background:#2A2040; font-size:15px; color:var(--muted);
   padding:8px 12px; text-align:left; letter-spacing:.06em; text-transform:uppercase;
 }
-.tiers-card td { padding:10px 12px; font-size:16px; border-top:1px solid var(--border); }
+.tiers-card td { padding:10px 12px; font-size:17px; border-top:1px solid var(--border); }
 .tiers-card tr:hover td { background:#2A2040; }
 .tier-qty   { color:var(--muted); font-weight:600; }
 .tier-cost  { color:var(--text); }
@@ -125,8 +125,8 @@ header h1 { font-size:18px; font-weight:700; }
 }
 .kim-track { flex:1; height:6px; background:#3A3058; border-radius:3px; overflow:hidden; }
 .kim-fill  { height:100%; border-radius:3px; background:var(--gold); transition:width .4s; }
-.kim-label { font-size:14px; color:var(--muted); white-space:nowrap; }
-.kim-val   { font-size:17px; font-weight:700; color:var(--gold); }
+.kim-label { font-size:16px; color:var(--muted); white-space:nowrap; }
+.kim-val   { font-size:18px; font-weight:700; color:var(--gold); }
 
 /* Пустой стейт */
 .placeholder {
@@ -149,7 +149,7 @@ header h1 { font-size:18px; font-weight:700; }
 
 <header>
   <div>
-    <div style="font-size:13px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">
+    <div style="font-size:15px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">
       ООО «Механические Технологии»
     </div>
     <h1>💰 Калькулятор цены</h1>
@@ -170,10 +170,10 @@ header h1 { font-size:18px; font-weight:700; }
     <div class="field">
       <label>МАТЕРИАЛ</label>
       <div class="mat-grid">
-        <button class="mat-btn active" data-mat="aluminium"  onclick="selMat(this)">Алюминий<br><span style="font-size:13px;font-weight:400">Д16Т · 2 000 ₽/кг</span></button>
-        <button class="mat-btn"        data-mat="brass"      onclick="selMat(this)">Латунь<br><span style="font-size:13px;font-weight:400">ЛС59-1 · 2 000 ₽/кг</span></button>
-        <button class="mat-btn"        data-mat="bronze"     onclick="selMat(this)">Бронза<br><span style="font-size:13px;font-weight:400">БрАЖ9-4 · 2 000 ₽/кг</span></button>
-        <button class="mat-btn"        data-mat="steel"      onclick="selMat(this)">Сталь 45<br><span style="font-size:13px;font-weight:400">ст.45 · 100 ₽/кг</span></button>
+        <button class="mat-btn active" data-mat="aluminium"  onclick="selMat(this)">Алюминий<br><span style="font-size:15px;font-weight:400">Д16Т · 2 000 ₽/кг</span></button>
+        <button class="mat-btn"        data-mat="brass"      onclick="selMat(this)">Латунь<br><span style="font-size:15px;font-weight:400">ЛС59-1 · 2 000 ₽/кг</span></button>
+        <button class="mat-btn"        data-mat="bronze"     onclick="selMat(this)">Бронза<br><span style="font-size:15px;font-weight:400">БрАЖ9-4 · 2 000 ₽/кг</span></button>
+        <button class="mat-btn"        data-mat="steel"      onclick="selMat(this)">Сталь 45<br><span style="font-size:15px;font-weight:400">ст.45 · 100 ₽/кг</span></button>
       </div>
     </div>
 
@@ -308,7 +308,7 @@ function renderResult(d, d_out, length) {
     + '</table></div>'
 
     // Подпись
-    + '<div style="font-size:13px;color:var(--muted);text-align:right">'
+    + '<div style="font-size:15px;color:var(--muted);text-align:right">'
     + '⚠️ Ориентировочный расчёт · Маржа 28% · НДС 22%<br>'
     + 'Для точного КП используйте /kp в боте'
     + '</div>';
