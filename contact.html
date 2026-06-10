@@ -228,9 +228,14 @@ const $=id=>document.getElementById(id);
 const E=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';
 // Убираем эмодзи/пиктограммы из НАЗВАНИЯ при показе (красные квадраты 🟥, стрелки ➜,
 // галочки ✅ и т.п.), вшитые при парсинге сайтов. Только для отображения — ключ name не меняем.
-const cleanName=s=>{if(!s)return s;const t=String(s)
+const TITLE_JUNK=/^\s*(?:официальн(?:ый|ого)\s+сайт(?:\s+компании)?|офиц\.?\s+сайт|сайт\s+компании|о\s+компании|добро\s+пожаловать(?:\s+на\s+сайт(?:\s+компании)?)?|главная\s+страница|главная)\s*[:\-–—|]*\s*/i;
+const cleanName=s=>{if(!s)return s;let t=String(s)
   .replace(/[←-⇿⌀-⏿①-⓿■-➿⤀-⥿⬀-⯿︀-️‍\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}]/gu,'');
-  return t.replace(/\s{2,}/g,' ').replace(/^[\s‐-―•·,]+|[\s‐-―•·,]+$/g,'').trim();};
+  t=t.replace(/\s{2,}/g,' ').replace(/^[\s‐-―•·,]+|[\s‐-―•·,]+$/g,'').trim();
+  const m=t.match(TITLE_JUNK);                       // «Официальный сайт X» → «X» (только при показе)
+  if(m){const rest=t.slice(m[0].length).replace(/^[\s‐-―•·,.|"']+|[\s‐-―•·,.|"']+$/g,'').trim();
+    if(rest.length>=2) t=rest;}
+  return t;};
 const fS=n=>{n=+n;return n>=1e6?(n/1e6).toFixed(1)+'М':n>=1e3?(n/1e3).toFixed(0)+'К':n+'₽'};
 const st=r=>{r=Math.round(parseFloat(r)||0);return r?'★'.repeat(r)+'☆'.repeat(5-r):''};
 const LB={coop:'Кооператор',supplier:'Поставщик',both:'Кооп + Поставщик'};
