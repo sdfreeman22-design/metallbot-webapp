@@ -1146,6 +1146,7 @@ async def api_metal_order(request: Request, x_telegram_init_data: str = Header(d
     who = (str(user.get("first_name", "")) +
            (" @" + user.get("username") if user.get("username") else "")).strip()
     _metal_orders.append({
+        "kind":         (body.get("kind") or "order"),   # order = заявка владельцу; download = файл заказчику
         "items":        items,
         "total_mass_g": body.get("total_mass_g") or 0,
         "total_cost":   body.get("total_cost") or 0,
