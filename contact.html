@@ -195,6 +195,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
     <div class="ef"><label class="ef-hint">Материалы <span>🔍 используется в поиске</span></label><textarea id="emat" rows="2" placeholder="Сталь, Нержавейка, Алюминий..."></textarea></div>
     <div class="ef"><label>Статус</label><select id="est"><option value="">—</option><option value="vip_own">✦ Наше предприятие</option><option value="vip">★ VIP-партнёр</option><option value="Активный">Активный</option><option value="Проверяется">Проверяется</option><option value="Неактивный">Неактивный</option><option value="Заблокирован">Заблокирован</option></select></div>
     <div class="ef"><label>Заметки</label><input id="en" type="text" placeholder="Комментарий..."></div>
+    <div class="ef"><label>Реквизиты <span style="opacity:.5;font-size:11px">ИНН · КПП · ОГРН · р/с · банк · БИК · юр.адрес · директор</span></label><textarea id="ereq" rows="6" placeholder="ИНН 7321009632&#10;КПП 732101001&#10;ОГРН 1207300001567&#10;р/с 40702810069000012068&#10;Банк ...&#10;БИК ...&#10;Юр.адрес ...&#10;Директор ..."></textarea></div>
     <div class="ebs"><button class="ecn" onclick="clEm()">Отмена</button><button class="esv" id="svBtn" onclick="svC()">Сохранить</button></div>
   </div></div>
 </div>
@@ -615,6 +616,7 @@ function rD(c){
     +(c.phone?'<div class="dac"><button class="dbtn" onclick="haptic(\'medium\');window.open(\'tel:'+E(c.phone.replace(/\s/g,''))+'\')">📞 Позвонить</button></div>':'')
     +galHtml+desc+tagsH+certs+facts
     +(info?'<div class="dsec">Контакты</div><div class="dcd">'+info+'</div>':'')
+    +(c.requisites?'<div class="dsec">Реквизиты</div><div class="dcd" style="white-space:pre-wrap;font-family:var(--mono);font-size:13px;line-height:1.5">'+E(c.requisites)+'</div>':'')
     +badge
     +(hasHist?'<div class="dsec">История закупок</div>'+hist:'')
     +'<div style="height:32px"></div></div>';
@@ -705,6 +707,7 @@ function opE(){
   $('emat').value=(c.materials_list&&c.materials_list.length?c.materials_list.join(', '):c.materials||'');
   $('est').value=c.status||'';
   $('en').value=c.notes||'';
+  $('ereq').value=c.requisites||'';
   $('em').classList.add('open');
   window.NavBack&&NavBack.refresh();
 }
@@ -800,6 +803,7 @@ async function svC(){
   if(v('emat')) body.materials=v('emat');
   if(v('est')) body.status=v('est');
   if(v('en')) body.notes=v('en');
+  if(v('ereq')) body.requisites=v('ereq');
 
   btn.textContent='Сохраняю...';
   btn.disabled=true;

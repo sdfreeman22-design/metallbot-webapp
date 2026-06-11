@@ -274,6 +274,7 @@ def _row_to_contact(row: dict, kind: str) -> dict:
         "rating":         _s(row.get("Рейтинг")),
         "price_level":    _s(row.get("Цена_уровень")),
         "notes":          _s(row.get("Заметки") or row.get("Примечание")),
+        "requisites":     _s(row.get("Реквизиты")),
         "added":          _s(row.get("Добавлено") or row.get("Дата")),
         "added_by":       _s(row.get("Кто_добавил")),
         # Парсинговые данные — читаем из листа "Парсинг" по имени компании
@@ -596,6 +597,7 @@ class ContactUpdate(BaseModel):
     status:         Optional[str] = None
     rating:         Optional[str] = None
     notes:          Optional[str] = None
+    requisites:     Optional[str] = None   # реквизиты (ИНН/КПП/ОГРН/р.с./банк/адрес/директор)
 
 # Маппинг поля → возможные названия колонок в листах
 _FIELD_COLS: dict[str, list[str]] = {
@@ -611,6 +613,7 @@ _FIELD_COLS: dict[str, list[str]] = {
     "status":         ["Статус"],
     "rating":         ["Рейтинг"],
     "notes":          ["Заметки", "Примечание"],
+    "requisites":     ["Реквизиты"],   # колонка создаётся автоматически при первом сохранении
 }
 
 # ── Сигнал боту о грязном кэше ───────────────────────────────────────────────
