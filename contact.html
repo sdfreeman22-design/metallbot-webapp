@@ -133,8 +133,8 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
 .bdl{background:rgba(255,20,100,.08);border:1px solid rgba(255,20,100,.25);border-radius:var(--r);color:var(--red);font-size:15px;padding:5px 10px;cursor:pointer;font-family:var(--mono);font-weight:600;letter-spacing:.5px;transition:all .15s}
 .bdl:active{background:rgba(255,20,100,.2)}
 
-#em{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,6,12,.7);align-items:flex-end;justify-content:center;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
-#em.open{display:flex}
+#em,#kp{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,6,12,.7);align-items:flex-end;justify-content:center;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+#em.open,#kp.open{display:flex}
 .es{width:100%;max-height:88vh;overflow-y:auto;background:var(--bg2);border-radius:16px 16px 0 0;padding:28px 20px calc(28px + env(safe-area-inset-bottom));border-top:1px solid rgba(255,20,100,.08)}
 .es::before{content:'';display:block;width:32px;height:3px;background:var(--ink4);border-radius:2px;margin:0 auto 20px}
 .es h2{font-family:var(--mono);font-size:15px;color:var(--red);text-transform:uppercase;letter-spacing:2px;margin-bottom:22px}
@@ -174,7 +174,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
   <div class="hdr"><h1>METALLBOT</h1><span class="hc" id="hc">—</span></div>
   <div id="ptr">↓ обновить</div>
   <div class="sw"><input class="si" id="si" type="search" placeholder="Поиск контрагента..." autocomplete="off"></div>
-  <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span></div>
+  <div class="fl"><span class="chip on" data-k="">Все</span><span class="chip" data-k="coop">Кооператоры</span><span class="chip" data-k="supplier">Поставщики</span><span class="chip" style="margin-left:auto;border-color:var(--amber);color:var(--amber)" onclick="openKP()">📋 Новое КП</span></div>
   <div class="fl" id="ops-row" style="padding-top:2px"></div>
   <div class="fl" id="mat-row" style="padding-top:2px;display:none"></div>
   <div id="list"></div>
@@ -197,6 +197,18 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sa
     <div class="ef"><label>Заметки</label><input id="en" type="text" placeholder="Комментарий..."></div>
     <div class="ef"><label>Реквизиты <span style="opacity:.5;font-size:11px">ИНН · КПП · ОГРН · р/с · банк · БИК · юр.адрес · директор</span></label><textarea id="ereq" rows="6" placeholder="ИНН 7321009632&#10;КПП 732101001&#10;ОГРН 1207300001567&#10;р/с 40702810069000012068&#10;Банк ...&#10;БИК ...&#10;Юр.адрес ...&#10;Директор ..."></textarea></div>
     <div class="ebs"><button class="ecn" onclick="clEm()">Отмена</button><button class="esv" id="svBtn" onclick="svC()">Сохранить</button></div>
+  </div></div>
+
+  <div id="kp"><div class="es">
+    <h2>📋 Новое КП</h2>
+    <div class="ef"><label>Клиент (в шапку КП)</label><input id="kpClient" type="text" placeholder="ООО «Ромашка»"></div>
+    <div class="ef"><label>Позиции <span style="color:var(--green);opacity:.7;font-size:12px;text-transform:none">запрос материала + кол-во</span></label>
+      <div id="kpRows"></div>
+      <button type="button" onclick="addKpRow()" style="background:transparent;border:1px dashed var(--border2);color:var(--ink3);border-radius:var(--r);padding:9px 14px;margin-top:6px;cursor:pointer;font-size:14px;width:100%">＋ Позиция</button></div>
+    <div class="ef"><label>Доставка, ₽ (если есть)</label><input id="kpDelivery" type="number" value="0" min="0" step="1"></div>
+    <div class="ef"><label>Наценка, % <span style="opacity:.5;font-size:11px;text-transform:none">пусто = по умолчанию</span></label><input id="kpMarkup" type="number" placeholder="30" min="0" step="1"></div>
+    <div class="ebs"><button class="ecn" onclick="clKP()">Закрыть</button><button class="esv" onclick="submitQuote()">Рассчитать КП</button></div>
+    <div id="kpResult"></div>
   </div></div>
 </div>
 <script>
@@ -699,6 +711,58 @@ async function getCompanyFile(i){
     if(d&&d.ok){ say('📥 Бот пришлёт файл «'+(f.name||'прайс')+'» вам в чат.'); }
     else{ say('Не удалось запросить файл.'); }
   }catch(e){ say('Нет связи с сервером.'); }
+}
+
+// ── Новое КП (модуль КП, POST /api/quote) ────────────────────────────────────
+function openKP(){ haptic('light'); $('kpRows').innerHTML=''; addKpRow(); $('kpResult').innerHTML='';
+  $('kpClient').value=''; $('kpDelivery').value='0'; $('kpMarkup').value='';
+  $('kp').classList.add('open'); window.NavBack&&NavBack.refresh(); }
+function clKP(){ $('kp').classList.remove('open'); window.NavBack&&NavBack.refresh(); }
+function addKpRow(){
+  const d=document.createElement('div'); d.style.cssText='display:flex;gap:6px;margin-bottom:6px';
+  d.innerHTML='<input class="kpq" type="text" placeholder="лист 3мм 09Г2С 1.5х6" style="flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;color:var(--ink);font-size:16px;outline:none">'
+    +'<input class="kpn" type="number" value="1" min="0" step="0.1" style="width:72px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:10px 8px;color:var(--ink);font-size:16px;outline:none;text-align:center">'
+    +'<button type="button" onclick="this.parentNode.remove()" style="background:transparent;border:1px solid var(--border2);color:var(--ink3);border-radius:var(--r);width:40px;cursor:pointer;font-size:16px">✕</button>';
+  $('kpRows').appendChild(d);
+}
+function kpFmt(n){ return (Math.round((+n)*100)/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽'; }
+async function submitQuote(){
+  const items=[...document.querySelectorAll('#kpRows > div')].map(function(r){
+    return {query:(r.querySelector('.kpq').value||'').trim(), qty:parseFloat(r.querySelector('.kpn').value)||1};
+  }).filter(function(i){return i.query;});
+  if(!items.length){ say('Добавьте хотя бы одну позицию'); return; }
+  const body={client:($('kpClient').value||'').trim(), items, delivery_cost:parseFloat($('kpDelivery').value)||0};
+  const mk=parseFloat($('kpMarkup').value); if(!isNaN(mk)&&mk>=0) body.markup=mk/100;
+  haptic('medium');
+  $('kpResult').innerHTML='<div style="opacity:.6;padding:12px 4px">⏳ Считаю по прайсу…</div>';
+  try{
+    const r=await fetch('/api/quote',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(body)});
+    const d=await r.json().catch(function(){return {};});
+    if(!r.ok){ $('kpResult').innerHTML='<div style="color:var(--red);padding:12px 4px">⚠ '+E(d.detail||('Ошибка '+r.status))+'</div>'; return; }
+    renderKP(d);
+  }catch(e){ $('kpResult').innerHTML='<div style="color:var(--red);padding:12px 4px">Нет связи с сервером</div>'; }
+}
+function renderKP(d){
+  window._kpText=String(d.client_text||'').replace(/<[^>]+>/g,'');
+  let h='<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">';
+  h+='<div style="background:rgba(255,176,64,.08);border:1px solid var(--amber);border-radius:8px;padding:11px;margin-bottom:12px">'
+    +'<div style="font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:1px;margin-bottom:4px">ДЛЯ ВАС — КЛИЕНТУ НЕ ПОКАЗЫВАТЬ</div>'
+    +'<div style="font-size:14px">Итого с НДС: <b>'+kpFmt(d.total)+'</b></div>'
+    +'<div style="font-size:14px">Маржа: <b style="color:var(--amber)">'+kpFmt(d.margin)+'</b> · наценка '+Math.round(d.markup_used*100)+'%</div>';
+  if(d.missing&&d.missing.length) h+='<div style="color:var(--red);font-size:12px;margin-top:5px">Не найдено в прайсе: '+E(d.missing.join(', '))+'</div>';
+  h+='</div>';
+  h+='<div style="font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:1px;margin-bottom:5px">ТЕКСТ КЛИЕНТУ</div>';
+  h+='<div style="white-space:pre-wrap;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:12px;font-size:14px;line-height:1.5">'+d.client_text+'</div>';
+  h+='<button class="esv" style="width:100%;margin-top:10px" onclick="copyKP()">📋 Скопировать для клиента</button>';
+  h+='</div>';
+  $('kpResult').innerHTML=h;
+}
+function copyKP(){
+  const t=window._kpText||'';
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){haptic('light');say('✅ Скопировано — вставьте клиенту');},
+      function(){say('Выделите текст и скопируйте вручную');});
+  } else { say('Выделите текст КП и скопируйте вручную'); }
 }
 
 // ── Swipe to close ─────────────────────────────────────────────────────────

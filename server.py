@@ -38,8 +38,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
+from decimal import Decimal, InvalidOperation       # КП-модуль: деньги только Decimal
+from datetime import datetime
 
 app = FastAPI(title="METALLBOT Mini App")
+
+# Наценка КП по умолчанию (env QUOTE_MARKUP, 0.30 = +30%). Перенесено из v2.1.
+QUOTE_MARKUP = Decimal(os.getenv("QUOTE_MARKUP", "0.30"))
+PRICE_SHEET  = "Прайс"
+_MONEY_CLEAN = re.compile(r"[^\d.,\-]")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 # Mini App открывается из того же origin (этот сервер отдаёт и HTML, и API),
@@ -1232,6 +1239,139 @@ def api_company_files(company: str):
             })
     out.reverse()   # свежие сверху
     return {"files": out}
+
+
+# ── МОДУЛЬ КП (перенесён из v2.1) — заявка → подбор из прайса × наценка → клиенту ──
+# Лист "Прайс": Наименование | Марка | Размер | Единица | Цена_закуп | Поставщик | Наличие
+def _dec(raw) -> Decimal:
+    """Деньги в Decimal: '1 234,56 ₽'/NBSP/'1,234.56' → Decimal (float не считаем). Отдельно от float _money."""
+    s = _MONEY_CLEAN.sub("", _s(raw).replace("\xa0", "").replace(" ", ""))
+    if not s or s in ("-", ".", ","):
+        return Decimal("0")
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    else:
+        s = s.replace(",", ".")
+        if s.count(".") > 1:
+            s = s.replace(".", "")
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return Decimal("0")
+
+def _price_rows() -> list[dict]:
+    out = []
+    for r in _sheet_rows(PRICE_SHEET):
+        name = _s(r.get("Наименование"))
+        cost = _dec(r.get("Цена_закуп") or r.get("Цена"))
+        if not name or cost <= 0:
+            continue
+        out.append({"name": name, "mark": _s(r.get("Марка")), "size": _s(r.get("Размер")),
+                    "unit": _s(r.get("Единица")) or "шт", "cost": cost,
+                    "supplier": _s(r.get("Поставщик")), "stock": _s(r.get("Наличие"))})
+    return out
+
+def _match_price(query: str, rows: list[dict]) -> tuple[Optional[dict], bool]:
+    """Лучшее совпадение по словам запроса. (строка, точное_ли)."""
+    words = [w for w in re.split(r"[\s,;]+", query.lower().strip()) if w]
+    if not words:
+        return None, False
+    best, best_score = None, 0
+    for r in rows:
+        hay = f'{r["name"]} {r["mark"]} {r["size"]}'.lower()
+        score = sum(1 for w in words if w in hay)
+        if score > best_score:
+            best, best_score = r, score
+    if best is None or best_score == 0:
+        return None, False
+    return best, best_score == len(words)
+
+class QuoteItem(BaseModel):
+    query: str
+    qty: float = 1
+
+class QuoteRequest(BaseModel):
+    client: str = ""
+    items: list[QuoteItem]
+    markup: Optional[float] = None
+    delivery_cost: float = 0
+
+def _fmt_rub(d: Decimal) -> str:
+    return f"{d:,.2f}".replace(",", " ").replace(".", ",") + " ₽"
+
+def _format_quote_client(client, lines, subtotal, delivery, total, vat) -> str:
+    """Текст КП для клиента: НИКАКИХ закупочных цен, поставщиков и маржи."""
+    out = ["📋 <b>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</b>"]
+    if client:
+        out.append(f"Для: <b>{client}</b>")
+    out.append(f"Дата: {datetime.now().strftime('%d.%m.%Y')}")
+    out.append("")
+    for i, l in enumerate(lines, 1):
+        title = " ".join(x for x in (l["name"], l["mark"], l["size"]) if x)
+        out.append(f"{i}. {title}")
+        out.append(f"   {l['qty']} {l['unit']} × {_fmt_rub(l['price'])} = <b>{_fmt_rub(l['sum'])}</b>")
+    out.append("")
+    if delivery > 0:
+        out.append(f"Товары: {_fmt_rub(subtotal)}")
+        out.append(f"Доставка: {_fmt_rub(delivery)}")
+    out.append(f"💰 <b>ИТОГО: {_fmt_rub(total)}</b>")
+    out.append(f"в т.ч. НДС 20%: {_fmt_rub(vat)}")
+    out.append("")
+    out.append("Предложение действительно 3 рабочих дня.")
+    return "\n".join(out)
+
+@app.get("/api/price")
+def api_price(q: str = "", _auth: dict = Depends(require_manager)):
+    """Прайс с закупочными ценами — ТОЛЬКО менеджер/админ (коммерческая тайна)."""
+    rows = _price_rows()
+    if q:
+        n = q.lower().strip()
+        rows = [r for r in rows if n in f'{r["name"]} {r["mark"]} {r["size"]} {r["supplier"]}'.lower()]
+    return {"items": [{**r, "cost": float(r["cost"])} for r in rows], "total": len(rows)}
+
+@app.post("/api/quote")
+def api_quote(body: QuoteRequest, _auth: dict = Depends(require_manager)):
+    """Расчёт КП: позиции из прайса × (1 + наценка). client_text — без закупа/поставщиков/маржи."""
+    if not body.items:
+        raise HTTPException(400, "Нет позиций")
+    rows = _price_rows()
+    if not rows:
+        raise HTTPException(503, f"Лист '{PRICE_SHEET}' пуст или не создан — добавьте прайс в Google Sheets")
+    markup = Decimal(str(body.markup)) if body.markup is not None else QUOTE_MARKUP
+    if not (Decimal("0") <= markup <= Decimal("5")):
+        raise HTTPException(400, "Наценка вне диапазона 0–500%")
+    lines, missing = [], []
+    cost_total = Decimal("0")
+    for it in body.items:
+        row, exact = _match_price(it.query, rows)
+        if row is None:
+            missing.append(it.query); continue
+        qty = Decimal(str(it.qty))
+        price = (row["cost"] * (Decimal("1") + markup)).quantize(Decimal("0.01"))
+        line_sum = (price * qty).quantize(Decimal("0.01"))
+        cost_total += (row["cost"] * qty)
+        lines.append({"query": it.query, "name": row["name"], "mark": row["mark"],
+                      "size": row["size"], "unit": row["unit"], "qty": float(qty),
+                      "price": price, "sum": line_sum, "supplier": row["supplier"],
+                      "exact_match": exact})
+    if not lines:
+        raise HTTPException(404, f"Ничего не найдено в прайсе: {', '.join(missing)}")
+    subtotal = sum((l["sum"] for l in lines), Decimal("0"))
+    delivery = Decimal(str(body.delivery_cost)).quantize(Decimal("0.01"))
+    total = subtotal + delivery
+    vat = (total * Decimal("20") / Decimal("120")).quantize(Decimal("0.01"))
+    margin = (subtotal - cost_total).quantize(Decimal("0.01"))
+    client_text = _format_quote_client(body.client, lines, subtotal, delivery, total, vat)
+    logger.info("[quote] %s: %d поз., итог %s, маржа %s", body.client or "—", len(lines), total, margin)
+    return {"ok": True, "client": body.client,
+            "lines": [{**l, "price": float(l["price"]), "sum": float(l["sum"])} for l in lines],
+            "missing": missing, "subtotal": float(subtotal), "delivery": float(delivery),
+            "total": float(total), "vat_included": float(vat), "markup_used": float(markup),
+            "margin": float(margin),                 # ТОЛЬКО менеджеру, клиенту не отправлять
+            "client_text": client_text}
 
 
 # ── Static ────────────────────────────────────────────────────────────────────
