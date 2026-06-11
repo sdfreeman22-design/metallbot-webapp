@@ -6,6 +6,7 @@ METALLBOT Mini App — локальный HTTP-сервер.
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
