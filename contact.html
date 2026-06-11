@@ -513,7 +513,7 @@ function render(){
     // Индикатор: нет email — предупреждение в правом углу
     const noEmail=!c.email;
     const emailWarn=noEmail?'<div style="font-family:var(--mono);font-size:13px;color:rgba(255,176,64,.7);margin-top:4px;letter-spacing:.5px">⚠ нет email</div>':'';
-    return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name)+'\')">'
+    return '<div class="'+cardCls+'" style="animation-delay:'+Math.min(i*40,320)+'ms" onclick="opD(\''+encodeURIComponent(c.name).replace(/'/g,'%27')+'\')">'
       +'<div class="card-bar '+(BC[c.kind]||'')+'"></div>'
       +'<div class="cb">'+badge+'<div class="cn">'+E(cleanName(c.name))+'</div><div class="cs">'+E(cleanCity(c.city))+' · '+E(LB[c.kind]||'')+'</div>'+(tgs?'<div class="ct">'+tgs+'</div>':'')+'</div>'
       +'<div class="cr">'+(s?'<div class="cr-s">'+s+'</div>':'')+emailWarn+'</div>'
