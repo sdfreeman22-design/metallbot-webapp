@@ -972,6 +972,8 @@ window.NavBack&&NavBack.refresh();
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 load();
+// Deep-link ?kp=1 (кнопка бота «КП по прайсу») → сразу форма «Новое КП»
+if(new URLSearchParams(location.search).get('kp')==='1'){ setTimeout(openKP, 350); }
 </script>
 </body>
 </html>
