@@ -619,7 +619,10 @@ function rD(c){
     +(c.requisites?'<div class="dsec">Реквизиты</div><div class="dcd" style="white-space:pre-wrap;font-family:var(--mono);font-size:13px;line-height:1.5">'+E(c.requisites)+'</div>':'')
     +badge
     +(hasHist?'<div class="dsec">История закупок</div>'+hist:'')
+    +'<div id="cfiles"></div>'
     +'<div style="height:32px"></div></div>';
+
+  loadCompanyFiles(c.name);
 
   // Fetch locally stored images from /api/images/{slug}
   const slug = c.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
@@ -644,6 +647,58 @@ function rD(c){
 function clD(){
   $('det').classList.remove('open');
   window.NavBack&&NavBack.refresh();
+}
+
+// ── Прайсы компании (файлы хранит бот в Telegram; здесь — список + действия) ──
+function say(m){ try{ if(tg&&tg.showAlert){ tg.showAlert(m); return; } }catch(e){} alert(m); }
+async function loadCompanyFiles(name){
+  const box=document.getElementById('cfiles');
+  if(!box) return;
+  window._cfName=name;
+  let files=[];
+  try{
+    const r=await fetch('/api/company-files/'+encodeURIComponent(name).replace(/'/g,'%27'));
+    if(r.ok){ const d=await r.json(); files=d.files||[]; }
+  }catch(e){}
+  window._cfiles=files;
+  let html='<div class="dsec">Прайсы компании</div>';
+  if(files.length){
+    html+='<div class="dcd">'+files.map(function(f,i){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">'
+        +'<div style="min-width:0"><div style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 '+E(f.name||'прайс')+'</div>'
+        +'<div style="font-size:11px;opacity:.5">'+E(f.date||'')+(f.size?' · '+E(f.size):'')+(f.by?' · '+E(f.by):'')+'</div></div>'
+        +'<button class="dbtn" style="flex:none;width:auto;padding:7px 13px;font-size:13px" onclick="getCompanyFile('+i+')">📥</button>'
+        +'</div>';
+    }).join('')+'</div>';
+  } else {
+    html+='<div class="dcd" style="opacity:.5;font-size:13px">Прайсы ещё не прикреплены.</div>';
+  }
+  html+='<div class="dac"><button class="dbtn" onclick="attachPrice()">📎 Прикрепить прайс</button></div>';
+  box.innerHTML=html;
+}
+async function attachPrice(){
+  const name=window._cfName; if(!name) return;
+  haptic('medium');
+  try{
+    const r=await fetch('/api/company-file',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({action:'attach',company:name,user:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)||null})});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.ok){ say('📎 Откройте чат с ботом — он ждёт файл прайса для «'+name+'» (Excel/PDF/любой формат).'); }
+    else if(d&&d.reason==='no_user'){ say('Откройте мини-апп из бота — не удалось определить пользователя.'); }
+    else{ say('Не удалось. Попробуйте ещё раз.'); }
+  }catch(e){ say('Нет связи с сервером.'); }
+}
+async function getCompanyFile(i){
+  const f=(window._cfiles||[])[i], name=window._cfName;
+  if(!f||!name) return;
+  haptic('medium');
+  try{
+    const r=await fetch('/api/company-file',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({action:'get',company:name,file_id:f.file_id,fname:f.name,user:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)||null})});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.ok){ say('📥 Бот пришлёт файл «'+(f.name||'прайс')+'» вам в чат.'); }
+    else{ say('Не удалось запросить файл.'); }
+  }catch(e){ say('Нет связи с сервером.'); }
 }
 
 // ── Swipe to close ─────────────────────────────────────────────────────────

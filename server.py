@@ -1173,6 +1173,67 @@ def api_metal_orders():
     return {"orders": out}
 
 
+# ── Прайсы-файлы компаний (хранятся в Telegram через бота; в листе только file_id) ──
+_company_files_q: list[dict] = []   # очередь: attach (бот попросит файл) / get (бот пришлёт файл)
+
+@app.post("/api/company-file")
+async def api_company_file(request: Request, x_telegram_init_data: str = Header(default="")):
+    """Действие с прайсом компании: attach (прикрепить — бот попросит файл в чат)
+    или get (получить — бот пришлёт файл). Кладём в очередь, бот забирает."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    action  = body.get("action")
+    company = (body.get("company") or "").strip()
+    if action not in ("attach", "get") or not company:
+        return JSONResponse({"ok": False, "reason": "bad_request"}, status_code=400)
+    user = _verify_init_data(x_telegram_init_data)
+    if not user:
+        user = _user_from_init_unverified(x_telegram_init_data)
+    if not user and isinstance(body.get("user"), dict):
+        user = body.get("user")
+    user = user or {}
+    uid = user.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=400)
+    _company_files_q.append({
+        "action":  action,
+        "company": company,
+        "file_id": body.get("file_id", ""),
+        "fname":   body.get("fname", ""),
+        "uid":     uid,
+        "ts":      time.time(),
+    })
+    if len(_company_files_q) > 200:
+        del _company_files_q[:-200]
+    return {"ok": True, "queued": True}
+
+@app.get("/api/company-file-queue")
+def api_company_file_queue():
+    """Бот забирает очередь действий с прайсами и очищает."""
+    global _company_files_q
+    out = _company_files_q[:]
+    _company_files_q = []
+    return {"actions": out}
+
+@app.get("/api/company-files/{company:path}")
+def api_company_files(company: str):
+    """Список прикреплённых прайсов компании (для показа в карточке)."""
+    out = []
+    for r in _sheet_rows("Прайсы_Файлы"):
+        if _norm(_s(r.get("Компания"))) == _norm(company):
+            out.append({
+                "name":    _s(r.get("Файл")),
+                "date":    _s(r.get("Дата")),
+                "by":      _s(r.get("Кто")),
+                "file_id": _s(r.get("File_ID")),
+                "size":    _s(r.get("Размер")),
+            })
+    out.reverse()   # свежие сверху
+    return {"files": out}
+
+
 # ── Static ────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
