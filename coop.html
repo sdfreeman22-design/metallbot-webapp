@@ -152,8 +152,9 @@ textarea.inp{resize:vertical;min-height:64px;line-height:1.4}
 
 <div class="tabs">
   <div class="tab on" data-v="feed" onclick="go('feed')">🤝 Лента</div>
-  <div class="tab" data-v="place" onclick="go('place')">➕ Разместить</div>
+  <div class="tab" data-v="place" onclick="go('place')">➕ Заказ</div>
   <div class="tab" data-v="mine" onclick="go('mine')">📂 Мои</div>
+  <div class="tab" data-v="trust" onclick="go('trust')">🛡 Доверие</div>
 </div>
 
 <div class="wrap">
@@ -197,6 +198,17 @@ textarea.inp{resize:vertical;min-height:64px;line-height:1.4}
     </div>
     <div id="mine-orders"><div class="skel"></div><div class="skel"></div></div>
     <div id="mine-resp" style="display:none"><div class="skel"></div><div class="skel"></div></div>
+  </div>
+
+  <!-- ДОВЕРИЕ -->
+  <div class="view" id="v-trust">
+    <div class="sub">Бейджи доверия видны заказчикам у ваших откликов — повышают шанс, что выберут именно вас. Площадка лишь сводит стороны.</div>
+    <div id="trust-state" class="card" style="opacity:1;transform:none">загрузка…</div>
+    <div class="field"><label>ИНН организации или ИП</label>
+      <input class="inp" id="t-inn" inputmode="numeric" placeholder="10 цифр — юрлицо, 12 — ИП" maxlength="12"></div>
+    <button class="runbtn" id="inn-btn" onclick="submitInn()">🛡 Подтвердить ИНН</button>
+    <div class="sub" style="margin-top:16px">🚀 <b>Продвижение (реклама):</b> ваши отклики поднимаются выше остальных с честной пометкой «⭐ Реклама». Без комиссии со сделок.</div>
+    <button class="runbtn" onclick="reqPromo()" style="border-color:var(--violet);color:var(--violet);box-shadow:inset 0 0 18px var(--violet-dim)">📣 Запросить продвижение</button>
   </div>
 </div>
 
@@ -249,6 +261,7 @@ function go(v){
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));
   if(v==='feed') loadFeed();
   if(v==='mine') loadMine();
+  if(v==='trust') loadTrust();
   syncBack();
 }
 function syncBack(){
@@ -285,7 +298,9 @@ function renderResponses(d){
       else { btns='<button class="act" onclick="doOpen(\''+E(r.id)+'\')">🔓 Контакт</button>'+
                   '<button class="act alt" onclick="doChoose(\''+E(r.id)+'\')">✅ Выбрать</button>'; }
       return '<div class="rcard'+(r.chosen?' chosen':'')+'"><div class="rn">'+(i+1)+'. '+E(r.name||'Исполнитель')+
+        (r.promo?'<span style="color:var(--violet);font-family:var(--mono);font-size:12px"> · ⭐ Реклама</span>':'')+
         (r.card?' · <span style="color:var(--ink3);font-weight:400">'+E(r.card)+'</span>':'')+'</div>'+
+        (r.trust?'<div class="sub" style="margin:5px 0 0;color:var(--green)">'+E(r.trust)+'</div>':'')+
         '<div class="meta"><span>💰 <b>'+E(r.price)+' ₽</b>/шт</span>'+(r.srok?'<span>⏱ '+E(r.srok)+'</span>':'')+'</div>'+
         (r.comment?'<div class="sub" style="margin:2px 0 0">📝 '+E(r.comment)+'</div>':'')+
         '<div class="rb">'+btns+'</div></div>';
@@ -307,6 +322,36 @@ function doChoose(rid){
   else run();
 }
 function closeRespScreen(){ document.getElementById('resp-screen').classList.remove('on'); respScreenOid=null; syncBack(); loadMine(); }
+
+/* ---- ДОВЕРИЕ / ПРОДВИЖЕНИЕ (исполнитель) ---- */
+function loadTrust(){
+  const box=document.getElementById('trust-state'); box.innerHTML='<div class="sub">загрузка…</div>';
+  api('/api/coop/trust').then(d=>{
+    let s;
+    if(d.verified) s='✅ <b>Проверена в ЕГРЮЛ</b>'+(d.org?'<br><span class="sub">'+E(d.org)+'</span>':'')+'<br>ИНН: <code>'+E(d.inn)+'</code>';
+    else if(d.inn_ok) s='🛡 <b>ИНН подтверждён</b> (контрольная сумма)<br>ИНН: <code>'+E(d.inn)+'</code>';
+    else s='⚪️ ИНН не указан — добавьте, чтобы получить бейдж доверия.';
+    s+='<div class="meta" style="margin-top:9px"><span>🤝 сделок: <b>'+E(d.deals)+'</b></span>'+(d.promo?'<span style="color:var(--violet)">⭐ Реклама активна</span>':'')+'</div>';
+    box.innerHTML=s;
+    if(d.inn) document.getElementById('t-inn').value=d.inn;
+  }).catch(()=>{box.innerHTML='<div class="sub">ошибка сети</div>';});
+}
+function submitInn(){
+  const inn=document.getElementById('t-inn').value.replace(/[^\d]/g,'');
+  if(inn.length!==10&&inn.length!==12){ toast('ИНН: 10 цифр (юрлицо) или 12 (ИП)',true); return; }
+  const btn=document.getElementById('inn-btn'); btn.disabled=true; btn.textContent='Проверяю…'; hap();
+  api('/api/coop/inn',{body:JSON.stringify({inn:inn,user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null})}).then(d=>{
+    btn.disabled=false; btn.textContent='🛡 Подтвердить ИНН';
+    toast(d.ok?'🛡 ИНН отправлен на проверку — результат придёт в чат':'Проверьте ИНН',!d.ok);
+    if(d.ok) setTimeout(loadTrust,2800);
+  }).catch(()=>{btn.disabled=false; btn.textContent='🛡 Подтвердить ИНН'; toast('Ошибка сети',true);});
+}
+function reqPromo(){
+  hap('medium');
+  api('/api/coop/promoreq',{body:JSON.stringify({user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null})})
+    .then(d=>toast(d.ok?'📣 Заявка на продвижение отправлена — менеджер свяжется':'Ошибка',!d.ok))
+    .catch(()=>toast('Ошибка сети',true));
+}
 
 /* ---- ЛЕНТА ---- */
 function orderCard(o, ctx){

@@ -1290,6 +1290,28 @@ async def api_coop_respond(request: Request, x_telegram_init_data: str = Header(
     del _coop_actions[:-300]
     return {"ok": True, "queued": True}
 
+def _coop_trust_map() -> dict:
+    """uid → строка профиля доверия из листа «Доверие_Кооп» (бот зеркалит туда users.json)."""
+    m = {}
+    for r in _sheet_rows("Доверие_Кооп"):
+        u = _s(r.get("uid"))
+        if u:
+            m[u] = r
+    return m
+
+def _coop_trust_badge_s(r: dict) -> str:
+    if not r:
+        return ""
+    p = []
+    if _s(r.get("Проверена")) == "1":
+        p.append("✅ Проверена")
+    elif _s(r.get("ИНН_ок")) == "1":
+        p.append("🛡 ИНН")
+    d = _s(r.get("Сделок"))
+    if d and d != "0":
+        p.append("🤝 " + d)
+    return " · ".join(p)
+
 @app.get("/api/coop/responses")
 def api_coop_responses(oid: str = "", x_telegram_init_data: str = Header(default="")):
     """Отклики по заказу — ТОЛЬКО автору заказа. Контакты исполнителей НЕ отдаём
@@ -1303,16 +1325,22 @@ def api_coop_responses(oid: str = "", x_telegram_init_data: str = Header(default
         return {"ok": False, "reason": "no_order", "responses": []}
     if _s(order.get("Заказчик_uid")) != myid:
         return {"ok": False, "reason": "not_author", "responses": []}
+    tmap = _coop_trust_map()
     reps = []
     for r in _sheet_rows("Отклики_Кооп"):
         if _s(r.get("Заказ_ID")) != oid:
             continue
+        tr = tmap.get(_s(r.get("Исполнитель_uid"))) or {}
         reps.append({"id": _s(r.get("ID")), "name": _s(r.get("Исполнитель_имя")),
                      "card": _s(r.get("Исполнитель_карточка")), "price": _s(r.get("Цена")),
                      "srok": _s(r.get("Срок")), "comment": _s(r.get("Комментарий")),
                      "status": _s(r.get("Статус")),
-                     "chosen": _s(r.get("Статус")) == "Выбран"})
-    reps.sort(key=lambda x: int("".join(ch for ch in x["price"] if ch.isdigit()) or 10**12))
+                     "chosen": _s(r.get("Статус")) == "Выбран",
+                     "trust": _coop_trust_badge_s(tr),
+                     "promo": _s(tr.get("Промо")) == "1"})
+    # реклама: продвигаемые исполнители выше, внутри групп — по цене
+    reps.sort(key=lambda x: (0 if x["promo"] else 1,
+                             int("".join(ch for ch in x["price"] if ch.isdigit()) or 10**12)))
     return {"ok": True, "title": _s(order.get("Наименование")),
             "status": _s(order.get("Статус")), "responses": reps}
 
@@ -1344,9 +1372,50 @@ async def api_coop_choose(request: Request, x_telegram_init_data: str = Header(d
         body = {}
     return _coop_enqueue_rid("choose", x_telegram_init_data, body)
 
+@app.get("/api/coop/trust")
+def api_coop_trust(x_telegram_init_data: str = Header(default="")):
+    """Профиль доверия текущего пользователя для экрана «Доверие» в мини-аппе."""
+    me = _coop_who(x_telegram_init_data)
+    myid = str(me.get("id") or "")
+    r = (_coop_trust_map().get(myid) or {}) if myid else {}
+    return {"uid": myid, "inn": _s(r.get("ИНН")), "inn_ok": _s(r.get("ИНН_ок")) == "1",
+            "verified": _s(r.get("Проверена")) == "1", "org": _s(r.get("Организация")),
+            "deals": _s(r.get("Сделок")) or "0", "promo": _s(r.get("Промо")) == "1"}
+
+@app.post("/api/coop/inn")
+async def api_coop_inn(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    inn = "".join(ch for ch in str(body.get("inn") or "") if ch.isdigit())
+    if len(inn) not in (10, 12):
+        return JSONResponse({"ok": False, "reason": "bad"}, status_code=400)
+    _coop_actions.append({"action": "inn", "uid": uid, "inn": inn, "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
+@app.post("/api/coop/promoreq")
+async def api_coop_promoreq(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    _coop_actions.append({"action": "promoreq", "uid": uid, "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
 @app.get("/api/coop/actions")
 def api_coop_actions():
-    """Бот забирает накопленные действия Кооперации (размещение/отклик/открыть/выбрать)."""
+    """Бот забирает накопленные действия Кооперации (размещение/отклик/открыть/выбрать/инн/промо)."""
     global _coop_actions
     out = _coop_actions[:]
     _coop_actions = []
