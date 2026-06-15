@@ -726,7 +726,7 @@ class SiteParser:
 
         # ── 3. Claude AI — извлечение структурированных данных ────────────────
         if raw_text and ANTHROPIC_API_KEY:
-            await _progress("🤖 Claude AI анализирует контент...")
+            await _progress("🤖 ИИ анализирует содержимое сайта...")
             try:
                 ai_data = await SiteParser._extract_with_claude(
                     result.raw_text, result.company_name, result.url,
