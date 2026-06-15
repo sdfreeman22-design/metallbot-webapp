@@ -1452,10 +1452,14 @@ async def api_coop_profile(request: Request, x_telegram_init_data: str = Header(
     ops = [str(x)[:40] for x in (body.get("ops") or []) if str(x).strip()][:12]
     if not ops:
         return JSONResponse({"ok": False, "reason": "no_ops"}, status_code=400)
-    _coop_actions.append({"action": "profile_add", "uid": uid, "ops": ops,
-                          "mats": [str(x)[:40] for x in (body.get("mats") or [])][:12],
-                          "city": str(body.get("city") or "")[:60],
-                          "budget": str(body.get("budget") or "")[:40], "ts": time.time()})
+    sid = (body.get("sid") or "").strip()          # есть sid → редактирование, нет → создание
+    item = {"action": "profile_edit" if sid else "profile_add", "uid": uid, "ops": ops,
+            "mats": [str(x)[:40] for x in (body.get("mats") or [])][:12],
+            "city": str(body.get("city") or "")[:60],
+            "budget": str(body.get("budget") or "")[:40], "ts": time.time()}
+    if sid:
+        item["sid"] = sid
+    _coop_actions.append(item)
     del _coop_actions[:-300]
     return {"ok": True, "queued": True}
 

@@ -257,7 +257,7 @@ const TG = window.Telegram ? window.Telegram.WebApp : null;
 try{ TG && TG.ready(); TG && TG.expand(); TG && TG.setHeaderColor && TG.setHeaderColor('#08060c'); }catch(e){}
 const IID = (TG && TG.initData) || "";
 let CUR = 'feed', MINE = 'orders', respOid = null;
-const TITLES = {}, RNAMES = {};
+const TITLES = {}, RNAMES = {}, PROFS = {};
 const E = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hap = t => { try{ TG && TG.HapticFeedback && TG.HapticFeedback.impactOccurred(t||'light'); }catch(e){} };
 
@@ -370,11 +370,12 @@ function reqPromo(){
 }
 
 /* ---- ПРОФИЛИ ПОДПИСКИ (исполнитель) ---- */
-let selProfOps=new Set(), selProfMats=new Set(), profLoaded=false;
+let selProfOps=new Set(), selProfMats=new Set(), profLoaded=false, editSid=null;
 function loadProfiles(){
   const box=document.getElementById('mine-profiles'); box.innerHTML='<div class="skel"></div>';
   api('/api/coop/profiles').then(d=>{
     const ps=d.profiles||[];
+    ps.forEach(p=>{ PROFS[p.id]=p; });
     const head='<div class="toolbar"><div class="cnt">профилей: '+ps.length+'/5</div><div class="ref" onclick="openProf()">➕ Новый</div></div>';
     if(!ps.length){ box.innerHTML=head+'<div class="empty"><div class="blip"></div>Профилей нет.<br>Создайте — и подходящие заказы будут приходить вам автоматически.</div>'; return; }
     box.innerHTML=head+ps.map(p=>{
@@ -382,31 +383,47 @@ function loadProfiles(){
       const mats=(p.mats||[]).map(x=>'<span class="opchip" style="color:var(--violet);background:var(--violet-dim);border-color:rgba(164,114,255,.2)">'+E(x)+'</span>').join('');
       const meta=[p.city?'<span>📍 '+E(p.city)+'</span>':'',(p.budget&&p.budget!=='0')?'<span>💰 от '+E(p.budget)+' ₽</span>':''].filter(Boolean).join('');
       return '<div class="card"><div class="top"><div class="ttl" style="font-size:15px">🔔 Профиль</div>'+
-        '<button class="act" style="padding:6px 12px;border-color:var(--red);color:var(--red);box-shadow:none" onclick="delProfile(\''+E(p.id)+'\')">🗑</button></div>'+
+        '<div style="display:flex;gap:6px">'+
+        '<button class="act" style="padding:6px 12px" onclick="editProfile(\''+E(p.id)+'\')">✏️</button>'+
+        '<button class="act" style="padding:6px 12px;border-color:var(--red);color:var(--red);box-shadow:none" onclick="delProfile(\''+E(p.id)+'\')">🗑</button></div></div>'+
         '<div class="chips">'+ops+mats+'</div>'+(meta?'<div class="meta">'+meta+'</div>':'')+'</div>';
     }).join('');
   }).catch(()=>{box.innerHTML='<div class="empty">ошибка сети</div>';});
 }
-function openProf(){
-  hap('medium'); selProfOps.clear(); selProfMats.clear();
-  document.getElementById('prof-city').value=''; document.getElementById('prof-budget').value='';
+function editProfile(sid){ openProf(PROFS[sid]||null); }
+function openProf(prof){
+  hap('medium'); editSid = prof ? prof.id : null;
+  selProfOps.clear(); selProfMats.clear();
+  document.getElementById('prof-city').value   = prof ? (prof.city||'') : '';
+  document.getElementById('prof-budget').value = prof && prof.budget && prof.budget!=='0' ? prof.budget : '';
+  document.querySelector('#prof-modal .sh').textContent = prof ? '✏️ Редактировать профиль' : '🔔 Новый профиль подписки';
+  document.getElementById('prof-btn').textContent = prof ? '✅ Сохранить' : '✅ Создать профиль';
   document.getElementById('prof-modal').classList.add('on');
+  const applySel=()=>{
+    if(prof){ (prof.ops||[]).forEach(o=>selProfOps.add(o)); (prof.mats||[]).forEach(m=>selProfMats.add(m)); }
+    document.querySelectorAll('#prof-ops .opb').forEach(e=>e.classList.toggle('on',selProfOps.has(e.dataset.op)));
+    document.querySelectorAll('#prof-mats .opb').forEach(e=>e.classList.toggle('on',selProfMats.has(e.dataset.op)));
+  };
   if(!profLoaded){
-    api('/api/operations').then(d=>{ document.getElementById('prof-ops').innerHTML=((d.operations||[]).map(x=>x.op)).map(op=>'<span class="opb" data-op="'+E(op)+'" onclick="tglProf(this,1)">'+E(op)+'</span>').join('')||'<span class="sub">—</span>'; });
-    api('/api/materials').then(d=>{ const ms=(d.materials||[]).map(x=>x.mat||x.op||x); document.getElementById('prof-mats').innerHTML=ms.map(m=>'<span class="opb" data-op="'+E(m)+'" onclick="tglProf(this,0)">'+E(m)+'</span>').join('')||'<span class="sub">—</span>'; });
+    let pending=2; const done=()=>{ if(--pending===0) applySel(); };
+    api('/api/operations').then(d=>{ document.getElementById('prof-ops').innerHTML=((d.operations||[]).map(x=>x.op)).map(op=>'<span class="opb" data-op="'+E(op)+'" onclick="tglProf(this,1)">'+E(op)+'</span>').join('')||'<span class="sub">—</span>'; done(); }).catch(done);
+    api('/api/materials').then(d=>{ const ms=(d.materials||[]).map(x=>x.mat||x.op||x); document.getElementById('prof-mats').innerHTML=ms.map(m=>'<span class="opb" data-op="'+E(m)+'" onclick="tglProf(this,0)">'+E(m)+'</span>').join('')||'<span class="sub">—</span>'; done(); }).catch(done);
     profLoaded=true;
-  } else { document.querySelectorAll('#prof-ops .opb.on,#prof-mats .opb.on').forEach(e=>e.classList.remove('on')); }
+  } else { applySel(); }
 }
-function closeProf(){ document.getElementById('prof-modal').classList.remove('on'); }
+function closeProf(){ document.getElementById('prof-modal').classList.remove('on'); editSid=null; }
 function tglProf(el,isOp){ const v=el.dataset.op; el.classList.toggle('on'); const s=isOp?selProfOps:selProfMats; if(s.has(v))s.delete(v); else s.add(v); hap(); }
 function createProfile(){
   if(!selProfOps.size){ toast('Выберите хотя бы одну операцию',true); return; }
-  const btn=document.getElementById('prof-btn'); btn.disabled=true; btn.textContent='Создаю…';
-  api('/api/coop/profile',{body:JSON.stringify({ops:[...selProfOps],mats:[...selProfMats],city:document.getElementById('prof-city').value.trim(),budget:document.getElementById('prof-budget').value.trim(),user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null})}).then(d=>{
-    btn.disabled=false; btn.textContent='✅ Создать профиль';
-    if(d.ok){ closeProf(); toast('✅ Профиль создан — подтверждение придёт в чат'); setTimeout(loadProfiles,1600); }
+  const ed=editSid;
+  const btn=document.getElementById('prof-btn'); btn.disabled=true; btn.textContent= ed?'Сохраняю…':'Создаю…';
+  const body={ops:[...selProfOps],mats:[...selProfMats],city:document.getElementById('prof-city').value.trim(),budget:document.getElementById('prof-budget').value.trim(),user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null};
+  if(ed) body.sid=ed;
+  api('/api/coop/profile',{body:JSON.stringify(body)}).then(d=>{
+    btn.disabled=false; btn.textContent= ed?'✅ Сохранить':'✅ Создать профиль';
+    if(d.ok){ closeProf(); toast(ed?'✏️ Профиль обновлён — подтверждение в чате':'✅ Профиль создан — подтверждение в чате'); setTimeout(loadProfiles,1600); }
     else toast(d.reason==='no_ops'?'Выберите операции':'Ошибка',true);
-  }).catch(()=>{btn.disabled=false; btn.textContent='✅ Создать профиль'; toast('Ошибка сети',true);});
+  }).catch(()=>{btn.disabled=false; btn.textContent= ed?'✅ Сохранить':'✅ Создать профиль'; toast('Ошибка сети',true);});
 }
 function delProfile(sid){
   const run=()=>api('/api/coop/profile_del',{body:JSON.stringify({sid:sid,user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null})})
