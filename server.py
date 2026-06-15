@@ -1413,9 +1413,65 @@ async def api_coop_promoreq(request: Request, x_telegram_init_data: str = Header
     del _coop_actions[:-300]
     return {"ok": True, "queued": True}
 
+@app.get("/api/coop/profiles")
+def api_coop_profiles(x_telegram_init_data: str = Header(default="")):
+    """Мои активные профили подписки (для умного пуша заказов)."""
+    me = _coop_who(x_telegram_init_data)
+    myid = str(me.get("id") or "")
+    if not myid:
+        return {"profiles": []}
+    out = []
+    for r in _sheet_rows("Профили_подписки"):
+        if _s(r.get("Исполнитель_uid")) != myid:
+            continue
+        if _s(r.get("Активен")).lower() not in ("да", "1", "true", ""):
+            continue
+        out.append({"id": _s(r.get("ID")),
+                    "ops": [x.strip() for x in _s(r.get("Операции")).split(",") if x.strip()],
+                    "mats": [x.strip() for x in _s(r.get("Материалы")).split(",") if x.strip()],
+                    "city": _s(r.get("Город")), "budget": _s(r.get("Бюджет_от"))})
+    return {"profiles": out}
+
+@app.post("/api/coop/profile")
+async def api_coop_profile(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    ops = [str(x)[:40] for x in (body.get("ops") or []) if str(x).strip()][:12]
+    if not ops:
+        return JSONResponse({"ok": False, "reason": "no_ops"}, status_code=400)
+    _coop_actions.append({"action": "profile_add", "uid": uid, "ops": ops,
+                          "mats": [str(x)[:40] for x in (body.get("mats") or [])][:12],
+                          "city": str(body.get("city") or "")[:60],
+                          "budget": str(body.get("budget") or "")[:40], "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
+@app.post("/api/coop/profile_del")
+async def api_coop_profile_del(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    sid = (body.get("sid") or "").strip()
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    if not sid:
+        return JSONResponse({"ok": False, "reason": "bad"}, status_code=400)
+    _coop_actions.append({"action": "profile_del", "uid": uid, "sid": sid, "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
 @app.get("/api/coop/actions")
 def api_coop_actions():
-    """Бот забирает накопленные действия Кооперации (размещение/отклик/открыть/выбрать/инн/промо)."""
+    """Бот забирает накопленные действия Кооперации (размещение/отклик/открыть/выбрать/инн/промо/профиль)."""
     global _coop_actions
     out = _coop_actions[:]
     _coop_actions = []
