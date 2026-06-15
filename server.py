@@ -636,9 +636,16 @@ def api_cache_status():
     return {"dirty": dirty}
 
 @app.post("/api/cache-bust")
-def api_cache_bust(sheets: list[str] = None):
-    """Явный сброс кэша (для тестов)."""
-    for s in (sheets or ["Кооперация"]):
+async def api_cache_bust(request: Request):
+    """Явный сброс кэша листов. Принимает {"sheets": [...]} (формат бота) или голый список."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    sheets = body.get("sheets") if isinstance(body, dict) else body
+    if not isinstance(sheets, list) or not sheets:
+        sheets = ["Кооперация"]
+    for s in sheets:
         _cache.pop(s, None)
         _dirty_sheets.add(s)
     return {"ok": True}
