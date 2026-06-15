@@ -1181,6 +1181,124 @@ def api_metal_orders():
     return {"orders": out}
 
 
+# ── 🤝 КООПЕРАЦИЯ — Mini App биржи заказов ───────────────────────────────────
+#   Чтение (лента / мои заказы / мои отклики) — напрямую из Sheets (кэш 120с).
+#   Запись (размещение / отклик) — в очередь _coop_actions; бот опрашивает
+#   GET /api/coop/actions (~6с) и исполняет со ВСЕЙ логикой (пуш исполнителям,
+#   рейтинг, контакт-стена, подписка — живут в users.json на стороне бота),
+#   затем шлёт подтверждение/ошибку заказчику в чат. server.py НЕ пишет в Sheets.
+_COOP_STATUS_OPEN = "Открыт"
+_coop_actions: list[dict] = []
+
+def _coop_who(init_data: str, body: dict | None = None) -> dict:
+    u = _verify_init_data(init_data) or _user_from_init_unverified(init_data)
+    if not u and isinstance((body or {}).get("user"), dict):
+        u = body["user"]
+    return u or {}
+
+def _coop_order_pub(o: dict, myid: str = "", replied=frozenset()) -> dict:
+    """Безопасное представление заказа для ленты (БЕЗ контактов заказчика)."""
+    oid = _s(o.get("ID"))
+    ops = [x.strip() for x in _s(o.get("Операции")).split(",") if x.strip()]
+    return {
+        "id": oid, "date": _s(o.get("Дата")),
+        "title": _s(o.get("Наименование")), "material": _s(o.get("Материал")),
+        "ops": ops, "qty": _s(o.get("Количество")), "ddl": _s(o.get("Срок")),
+        "city": _s(o.get("Город")), "budget": _s(o.get("Бюджет")),
+        "replies": _s(o.get("Откликов")) or "0",
+        "is_mine": bool(myid) and _s(o.get("Заказчик_uid")) == myid,
+        "replied": oid in replied,
+        "has_files": bool(_s(o.get("Файлы"))),
+    }
+
+@app.get("/api/coop/feed")
+def api_coop_feed(x_telegram_init_data: str = Header(default="")):
+    me = _coop_who(x_telegram_init_data)
+    myid = str(me.get("id") or "")
+    orders = [o for o in _sheet_rows("Заказы_Кооп") if _s(o.get("Статус")) == _COOP_STATUS_OPEN]
+    replied = set()
+    if myid:
+        for r in _sheet_rows("Отклики_Кооп"):
+            if _s(r.get("Исполнитель_uid")) == myid:
+                replied.add(_s(r.get("Заказ_ID")))
+    out = [_coop_order_pub(o, myid, replied) for o in orders]
+    out.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return {"orders": out, "uid": myid}
+
+@app.get("/api/coop/my")
+def api_coop_my(x_telegram_init_data: str = Header(default="")):
+    me = _coop_who(x_telegram_init_data)
+    myid = str(me.get("id") or "")
+    if not myid:
+        return {"orders": [], "responses": [], "uid": ""}
+    my_orders = [_coop_order_pub(o, myid) for o in _sheet_rows("Заказы_Кооп")
+                 if _s(o.get("Заказчик_uid")) == myid]
+    my_orders.sort(key=lambda x: x.get("date", ""), reverse=True)
+    resp = []
+    for r in _sheet_rows("Отклики_Кооп"):
+        if _s(r.get("Исполнитель_uid")) == myid:
+            resp.append({"id": _s(r.get("ID")), "oid": _s(r.get("Заказ_ID")),
+                         "date": _s(r.get("Дата")), "price": _s(r.get("Цена")),
+                         "srok": _s(r.get("Срок")), "status": _s(r.get("Статус")),
+                         "comment": _s(r.get("Комментарий"))})
+    resp.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return {"orders": my_orders, "responses": resp, "uid": myid}
+
+@app.post("/api/coop/place")
+async def api_coop_place(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    title = (body.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"ok": False, "reason": "no_title"}, status_code=400)
+    _coop_actions.append({
+        "action": "place", "uid": uid,
+        "title": title[:140], "material": str(body.get("material") or "")[:90],
+        "ops": [str(x)[:40] for x in (body.get("ops") or [])][:12],
+        "qty": str(body.get("qty") or "")[:40], "ddl": str(body.get("ddl") or "")[:60],
+        "city": str(body.get("city") or "")[:60], "budget": str(body.get("budget") or "")[:40],
+        "ts": time.time(),
+    })
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
+@app.post("/api/coop/respond")
+async def api_coop_respond(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    oid = (body.get("oid") or "").strip()
+    price = int("".join(ch for ch in str(body.get("price") or "") if ch.isdigit()) or 0)
+    if not oid or price <= 0:
+        return JSONResponse({"ok": False, "reason": "bad"}, status_code=400)
+    _coop_actions.append({
+        "action": "respond", "uid": uid, "oid": oid, "price": price,
+        "srok": str(body.get("srok") or "")[:40], "comment": str(body.get("comment") or "")[:300],
+        "ts": time.time(),
+    })
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
+@app.get("/api/coop/actions")
+def api_coop_actions():
+    """Бот забирает накопленные действия Кооперации (размещение/отклик) и очищает очередь."""
+    global _coop_actions
+    out = _coop_actions[:]
+    _coop_actions = []
+    return {"actions": out}
+
+
 # ── Прайсы-файлы компаний (хранятся в Telegram через бота; в листе только file_id) ──
 _company_files_q: list[dict] = []   # очередь: attach (бот попросит файл) / get (бот пришлёт файл)
 
@@ -1415,6 +1533,13 @@ def calc_hud_html():
 def tolerances_html():
     return FileResponse(
         WEBAPP_DIR / "tolerances.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
+@app.get("/coop.html")
+def coop_html():
+    return FileResponse(
+        WEBAPP_DIR / "coop.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
     )
 
