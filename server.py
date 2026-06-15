@@ -1290,9 +1290,63 @@ async def api_coop_respond(request: Request, x_telegram_init_data: str = Header(
     del _coop_actions[:-300]
     return {"ok": True, "queued": True}
 
+@app.get("/api/coop/responses")
+def api_coop_responses(oid: str = "", x_telegram_init_data: str = Header(default="")):
+    """Отклики по заказу — ТОЛЬКО автору заказа. Контакты исполнителей НЕ отдаём
+    (контакт-стена): открытие контакта/выбор идут через бота (гейтинг в users.json)."""
+    me = _coop_who(x_telegram_init_data)
+    myid = str(me.get("id") or "")
+    if not oid or not myid:
+        return {"ok": False, "reason": "bad", "responses": []}
+    order = next((o for o in _sheet_rows("Заказы_Кооп") if _s(o.get("ID")) == oid), None)
+    if not order:
+        return {"ok": False, "reason": "no_order", "responses": []}
+    if _s(order.get("Заказчик_uid")) != myid:
+        return {"ok": False, "reason": "not_author", "responses": []}
+    reps = []
+    for r in _sheet_rows("Отклики_Кооп"):
+        if _s(r.get("Заказ_ID")) != oid:
+            continue
+        reps.append({"id": _s(r.get("ID")), "name": _s(r.get("Исполнитель_имя")),
+                     "card": _s(r.get("Исполнитель_карточка")), "price": _s(r.get("Цена")),
+                     "srok": _s(r.get("Срок")), "comment": _s(r.get("Комментарий")),
+                     "status": _s(r.get("Статус")),
+                     "chosen": _s(r.get("Статус")) == "Выбран"})
+    reps.sort(key=lambda x: int("".join(ch for ch in x["price"] if ch.isdigit()) or 10**12))
+    return {"ok": True, "title": _s(order.get("Наименование")),
+            "status": _s(order.get("Статус")), "responses": reps}
+
+def _coop_enqueue_rid(action: str, init_data: str, body: dict):
+    me = _coop_who(init_data, body)
+    uid = me.get("id")
+    rid = (body.get("rid") or "").strip()
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    if not rid:
+        return JSONResponse({"ok": False, "reason": "bad"}, status_code=400)
+    _coop_actions.append({"action": action, "uid": uid, "rid": rid, "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
+@app.post("/api/coop/open")
+async def api_coop_open(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return _coop_enqueue_rid("open", x_telegram_init_data, body)
+
+@app.post("/api/coop/choose")
+async def api_coop_choose(request: Request, x_telegram_init_data: str = Header(default="")):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return _coop_enqueue_rid("choose", x_telegram_init_data, body)
+
 @app.get("/api/coop/actions")
 def api_coop_actions():
-    """Бот забирает накопленные действия Кооперации (размещение/отклик) и очищает очередь."""
+    """Бот забирает накопленные действия Кооперации (размещение/отклик/открыть/выбрать)."""
     global _coop_actions
     out = _coop_actions[:]
     _coop_actions = []

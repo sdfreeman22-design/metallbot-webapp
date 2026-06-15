@@ -117,6 +117,24 @@ textarea.inp{resize:vertical;min-height:64px;line-height:1.4}
 .sheet .so{font-family:var(--mono);font-size:13px;color:var(--ink3);margin-bottom:14px}
 .sheet .x{position:absolute;right:16px;top:14px;color:var(--ink3);font-size:22px;cursor:pointer;line-height:1}
 
+/* drill-down: отклики по своему заказу */
+.screen{position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;display:none;padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+.screen.on{display:block;animation:fade .25s ease}
+.shdr{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:5}
+.shdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan-glow),transparent)}
+.shdr .bk{font-family:var(--mono);font-size:14px;color:var(--cyan);cursor:pointer;border:1px solid var(--border2);border-radius:var(--r);padding:6px 12px}
+.shdr .bk:active{transform:scale(.95)}
+.shdr .st{font-family:var(--display);font-weight:700;font-size:16px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcard{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:13px 14px;margin-bottom:11px;position:relative;overflow:hidden;
+  opacity:0;transform:translateY(8px);animation:rise .35s cubic-bezier(.16,1,.3,1) forwards}
+.rcard::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan-dim),transparent)}
+.rcard.chosen::before{background:linear-gradient(90deg,transparent,var(--green),transparent)}
+.rcard .rn{font-family:var(--display);font-weight:700;font-size:16px;color:var(--ink);line-height:1.25}
+.rcard .rb{display:flex;gap:8px;margin-top:12px}
+.rcard .rb .act{flex:1;text-align:center}
+.act.alt{border-color:var(--green);color:var(--green);box-shadow:inset 0 0 14px var(--green-dim)}
+.act.alt:active{background:var(--green-dim)}
+
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);z-index:300;
   background:var(--surface2);border:1px solid var(--cyan);color:var(--ink);font-family:var(--mono);font-size:14px;padding:12px 18px;border-radius:var(--r);
   box-shadow:0 0 24px var(--cyan-dim);opacity:0;transition:all .3s;max-width:90%;text-align:center;pointer-events:none}
@@ -198,6 +216,12 @@ textarea.inp{resize:vertical;min-height:64px;line-height:1.4}
   </div>
 </div>
 
+<!-- отклики по своему заказу (drill-down) -->
+<div class="screen" id="resp-screen">
+  <div class="shdr"><span class="bk" onclick="closeRespScreen()">← Назад</span><span class="st" id="resp-st">Отклики</span></div>
+  <div class="wrap" id="resp-body"><div class="skel"></div><div class="skel"></div></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -205,7 +229,7 @@ const TG = window.Telegram ? window.Telegram.WebApp : null;
 try{ TG && TG.ready(); TG && TG.expand(); TG && TG.setHeaderColor && TG.setHeaderColor('#08060c'); }catch(e){}
 const IID = (TG && TG.initData) || "";
 let CUR = 'feed', MINE = 'orders', respOid = null;
-const TITLES = {};
+const TITLES = {}, RNAMES = {};
 const E = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hap = t => { try{ TG && TG.HapticFeedback && TG.HapticFeedback.impactOccurred(t||'light'); }catch(e){} };
 
@@ -231,7 +255,58 @@ function syncBack(){
   if(!TG||!TG.BackButton) return;
   if(CUR==='feed'){ TG.BackButton.hide(); } else { TG.BackButton.show(); }
 }
-if(TG&&TG.BackButton){ TG.BackButton.onClick(()=>{ if(CUR!=='feed') go('feed'); else TG.close&&TG.close(); }); }
+if(TG&&TG.BackButton){ TG.BackButton.onClick(()=>{
+  if(document.getElementById('resp-screen').classList.contains('on')){ closeRespScreen(); return; }
+  if(CUR!=='feed') go('feed'); else TG.close&&TG.close();
+}); }
+
+/* ---- ОТКЛИКИ ПО СВОЕМУ ЗАКАЗУ (заказчик) ---- */
+let respScreenOid=null;
+function openOrderResponses(oid){
+  respScreenOid=oid; hap('medium');
+  document.getElementById('resp-screen').classList.add('on');
+  document.getElementById('resp-st').textContent='Отклики · '+oid;
+  document.getElementById('resp-body').innerHTML='<div class="skel"></div><div class="skel"></div>';
+  if(TG&&TG.BackButton) TG.BackButton.show();
+  api('/api/coop/responses?oid='+encodeURIComponent(oid)).then(renderResponses)
+    .catch(()=>{document.getElementById('resp-body').innerHTML='<div class="empty">ошибка сети</div>';});
+}
+function renderResponses(d){
+  const b=document.getElementById('resp-body');
+  if(!d.ok){ b.innerHTML='<div class="empty">'+(d.reason==='not_author'?'Только заказчик видит отклики':'Заказ не найден')+'</div>'; return; }
+  document.getElementById('resp-st').textContent=(d.title||'Отклики');
+  const reps=d.responses||[];
+  if(!reps.length){ b.innerHTML='<div class="empty"><div class="blip"></div>Пока нет откликов.<br>Мы уведомили подходящих исполнителей — ждём.</div>'; return; }
+  reps.forEach(r=>{ RNAMES[r.id]=r.name||''; });
+  b.innerHTML='<div class="sub">🔒 Контакты скрыты. «Контакт» / «Выбрать» — контакт исполнителя придёт вам в чат бота (2 открытия бесплатно, далее по подписке).</div>'+
+    reps.map((r,i)=>{
+      let btns;
+      if(r.chosen){ btns='<span class="badge done" style="flex:1;text-align:center">✅ выбран</span>'; }
+      else { btns='<button class="act" onclick="doOpen(\''+E(r.id)+'\')">🔓 Контакт</button>'+
+                  '<button class="act alt" onclick="doChoose(\''+E(r.id)+'\')">✅ Выбрать</button>'; }
+      return '<div class="rcard'+(r.chosen?' chosen':'')+'"><div class="rn">'+(i+1)+'. '+E(r.name||'Исполнитель')+
+        (r.card?' · <span style="color:var(--ink3);font-weight:400">'+E(r.card)+'</span>':'')+'</div>'+
+        '<div class="meta"><span>💰 <b>'+E(r.price)+' ₽</b>/шт</span>'+(r.srok?'<span>⏱ '+E(r.srok)+'</span>':'')+'</div>'+
+        (r.comment?'<div class="sub" style="margin:2px 0 0">📝 '+E(r.comment)+'</div>':'')+
+        '<div class="rb">'+btns+'</div></div>';
+    }).join('');
+}
+function doOpen(rid){
+  hap();
+  api('/api/coop/open',{body:JSON.stringify({rid:rid,user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null})})
+    .then(d=>toast(d.ok?'🔓 Запрос отправлен — контакт придёт в чат':'Ошибка',!d.ok))
+    .catch(()=>toast('Ошибка сети',true));
+}
+function doChoose(rid){
+  const name=RNAMES[rid]||'';
+  const run=()=>{ hap('medium');
+    api('/api/coop/choose',{body:JSON.stringify({rid:rid,user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null})})
+      .then(d=>{ if(d.ok){ toast('✅ Выбор отправлен — контакт придёт в чат'); setTimeout(()=>openOrderResponses(respScreenOid),1600); } else toast('Ошибка',true); })
+      .catch(()=>toast('Ошибка сети',true)); };
+  if(TG&&TG.showConfirm){ TG.showConfirm('Выбрать исполнителя '+(name||'')+'? Ему придёт ваш контакт.',ok=>{ if(ok)run(); }); }
+  else run();
+}
+function closeRespScreen(){ document.getElementById('resp-screen').classList.remove('on'); respScreenOid=null; syncBack(); loadMine(); }
 
 /* ---- ЛЕНТА ---- */
 function orderCard(o, ctx){
@@ -245,7 +320,7 @@ function orderCard(o, ctx){
   ].filter(Boolean).join('');
   let action='';
   if(ctx==='mine'){
-    action = `<span class="rcount">📨 откликов: ${E(o.replies)}</span><span class="badge mine">управление в чате →</span>`;
+    action = `<span class="rcount">📨 откликов: ${E(o.replies)}</span><button class="act" onclick="openOrderResponses('${E(o.id)}')">👀 Отклики</button>`;
   } else if(o.is_mine){
     action = `<span class="rcount">📨 откликов: ${E(o.replies)}</span><span class="badge mine">ваш заказ</span>`;
   } else if(o.replied){
