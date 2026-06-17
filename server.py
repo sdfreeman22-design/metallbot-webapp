@@ -1198,7 +1198,18 @@ _COOP_STATUS_OPEN = "Открыт"
 _coop_actions: list[dict] = []
 
 def _coop_who(init_data: str, body: dict | None = None) -> dict:
-    u = _verify_init_data(init_data) or _user_from_init_unverified(init_data)
+    # АНТИ-СПУФИНГ (аудит 2026-06-17): при заданном TELEGRAM_TOKEN доверяем ТОЛЬКО
+    # валидной подписи Telegram. Иначе подделанный initData (любой id) выдавал бы
+    # себя за автора заказа (чужие ценовые офферы) или чужого исполнителя.
+    u = _verify_init_data(init_data)
+    if u is not None:
+        return u                       # подпись валидна — доверяем
+    if _BOT_TOKEN:
+        # токен задан, но подпись не прошла → подделка/чужой initData → НЕ доверяем
+        return {}
+    # TELEGRAM_TOKEN не задан (Render не настроен) → деградируем к прежнему
+    # поведению (неподписанный user), чтобы не сломать текущий прод до настройки токена
+    u = _user_from_init_unverified(init_data)
     if not u and isinstance((body or {}).get("user"), dict):
         u = body["user"]
     return u or {}
