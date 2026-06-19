@@ -1500,6 +1500,32 @@ def api_coop_actions():
     return {"actions": out}
 
 
+# ── 🏭 Парк оборудования клиента (мини-апп self-service) → очередь _coop_actions ──
+@app.post("/api/equipment")
+async def api_equipment_save(request: Request, x_telegram_init_data: str = Header(default="")):
+    """Клиент сохраняет СВОЙ парк станков из мини-аппа. uid из подписи Telegram;
+    действие equip_set → бот применяет в users.json (фото существующих станков сохраняет)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me  = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    park, clean, seen = body.get("park") or [], [], set()
+    for it in park[:30]:
+        if isinstance(it, dict) and it.get("key"):
+            k = str(it["key"])[:24]
+            if k in seen:
+                continue
+            seen.add(k)
+            clean.append({"key": k, "specs": str(it.get("specs") or "")[:80]})
+    _coop_actions.append({"action": "equip_set", "uid": uid, "park": clean, "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True, "count": len(clean)}
+
+
 # ── Прайсы-файлы компаний (хранятся в Telegram через бота; в листе только file_id) ──
 _company_files_q: list[dict] = []   # очередь: attach (бот попросит файл) / get (бот пришлёт файл)
 
@@ -1741,6 +1767,13 @@ def tolerances_html():
 def coop_html():
     return FileResponse(
         WEBAPP_DIR / "coop.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
+
+@app.get("/equipment.html")
+def equipment_html():
+    return FileResponse(
+        WEBAPP_DIR / "equipment.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
     )
 

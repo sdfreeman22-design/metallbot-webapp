@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Парк оборудования — Союз Производственников</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#08060c;--bg2:#0c0a12;--surface:#14121e;--ink:#f0e8f2;--ink2:#aa9ece;--ink3:#9485b2;--ink4:#6a5f8a;
+  --cyan:#1ad6ff;--cyan-dim:rgba(26,214,255,.07);--cyan-glow:rgba(26,214,255,.14);
+  --green:#00ffa0;--green-dim:rgba(0,255,160,.08);--amber:#ffb040;
+  --border:rgba(255,255,255,.04);--border2:rgba(255,255,255,.06);
+  --r:7px;--sans:'Onest',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;--display:'Sora',system-ui,sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;overflow-x:hidden;padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);opacity:.35}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--ink4);border-radius:4px}
+
+.hdr{padding:16px 18px 12px;background:var(--bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan-glow),transparent)}
+.hdr .brand{font-size:13px;color:var(--ink3);letter-spacing:.16em;text-transform:uppercase;font-family:var(--mono)}
+.hdr h1{font-family:var(--display);font-weight:800;font-size:18px;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 20px var(--cyan-dim);margin-top:2px;display:flex;align-items:center;gap:8px}
+
+.wrap{max-width:780px;margin:0 auto;padding:14px 16px}
+.sub{font-family:var(--sans);font-size:15px;color:var(--ink2);line-height:1.5;margin:2px 0 16px}
+.sub b{color:var(--amber)}
+.cnt{font-family:var(--mono);font-size:13px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin:0 0 12px}
+.cnt b{color:var(--cyan)}
+
+.group{margin-bottom:16px}
+.group>h3{font-family:var(--mono);font-size:12px;color:var(--ink3);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:8px;padding-left:2px}
+
+.mc{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:7px;overflow:hidden;transition:border-color .18s}
+.mc.on{border-color:var(--cyan);box-shadow:inset 0 0 14px var(--cyan-dim)}
+.mc .row{display:flex;align-items:center;gap:11px;padding:13px 14px;cursor:pointer}
+.mc .row:active{background:var(--cyan-dim)}
+.mc .tick{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--ink4);flex:none;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--bg);transition:all .16s}
+.mc.on .tick{background:var(--cyan);border-color:var(--cyan)}
+.mc .nm{font-family:var(--sans);font-size:16px;font-weight:600;color:var(--ink2);line-height:1.25}
+.mc.on .nm{color:var(--ink)}
+.mc .specwrap{max-height:0;overflow:hidden;transition:max-height .2s ease;border-top:1px solid transparent}
+.mc.on .specwrap{max-height:96px;border-top:1px solid var(--border2)}
+.mc .specwrap .ib{padding:10px 14px 13px}
+.mc .specwrap label{display:block;font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.inp{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;color:var(--ink);
+  font-size:16px;font-family:var(--sans);outline:none;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}
+.inp::placeholder{color:var(--ink4)}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 2px var(--cyan-dim)}
+
+.note{font-family:var(--mono);font-size:12px;color:var(--ink4);line-height:1.6;border:1px dashed var(--border2);border-radius:var(--r);padding:11px 13px;margin-top:6px}
+.note b{color:var(--ink3)}
+
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(0deg,var(--bg) 70%,transparent);border-top:1px solid var(--border)}
+.savebar .inner{max-width:780px;margin:0 auto}
+.runbtn{width:100%;padding:15px;border-radius:var(--r);border:1px solid var(--cyan);cursor:pointer;
+  background:var(--cyan-dim);color:var(--cyan);font-family:var(--mono);font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  box-shadow:inset 0 0 18px var(--cyan-dim);transition:all .2s}
+.runbtn:active{transform:scale(.985)}
+.runbtn[disabled]{opacity:.45;pointer-events:none}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:200;
+  background:var(--surface);border:1px solid var(--green);color:var(--green);font-family:var(--mono);font-size:14px;
+  padding:11px 18px;border-radius:var(--r);box-shadow:0 6px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none;text-align:center;max-width:90%}
+.toast.on{opacity:1}
+.toast.err{border-color:var(--amber);color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="brand">Союз Производственников</div>
+  <h1>🏭 Парк оборудования</h1>
+</div>
+<div class="wrap">
+  <div class="sub">Отметьте ваши станки — и бот будет строить <b>маршрутную карту детали под ваше оборудование</b> (фишка подписки). Размеры станка — по желанию.</div>
+  <div class="cnt">Выбрано станков: <b id="cnt">0</b></div>
+  <div id="groups"></div>
+  <div class="note">📷 <b>Фото станков</b> добавляются в боте: «Мой кабинет → 🏭 Парк оборудования → станок → Добавить фото». В мини-аппе фото появится в следующем обновлении.</div>
+</div>
+<div class="savebar"><div class="inner">
+  <button class="runbtn" id="save">💾 Сохранить парк</button>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TG = window.Telegram ? window.Telegram.WebApp : null;
+try{ TG && TG.ready(); TG && TG.expand(); TG && TG.setHeaderColor && TG.setHeaderColor('#08060c'); }catch(e){}
+const IID = (TG && TG.initData) || "";
+const hap = t => { try{ TG && TG.HapticFeedback && TG.HapticFeedback.impactOccurred(t||'light'); }catch(e){} };
+if(TG&&TG.BackButton){ TG.BackButton.show(); TG.BackButton.onClick(()=>{ try{TG.close();}catch(e){} }); }
+
+const GROUPS = [
+  ["Токарные",            [["eq_tok_univ","Токарный универсальный"],["eq_tok_cnc","Токарный ЧПУ"]]],
+  ["Фрезерные",           [["eq_frez_univ","Фрезерный универсальный"],["eq_frez_cnc","Обрабатывающий центр (фрезерный ЧПУ)"]]],
+  ["Сверление / расточка",[["eq_sverl","Сверлильный"],["eq_rastoch","Координатно-расточной"]]],
+  ["Финишные",            [["eq_shlif","Шлифовальный (кругло/плоско)"],["eq_zubo","Зубообрабатывающий"],["eq_eroz","Электроэрозионный"]]],
+  ["Термо / покрытие",    [["eq_termo","Термический участок/печь"],["eq_galv","Гальваника/покрытие"]]],
+  ["Заготовка / листы",   [["eq_svar","Сварочный пост"],["eq_listogib","Листогиб/гильотина"],["eq_lazer","Лазер/плазма"]]],
+  ["Слесарка / контроль", [["eq_sles","Слесарный участок"],["eq_otk","ОТК/измерительная"]]],
+];
+
+// начальное состояние парка — из ?park=<urlencoded json> (бот передаёт текущий парк)
+const sel = {};   // {key: specs}
+try{
+  const p = new URLSearchParams(location.search).get('park');
+  if(p){ (JSON.parse(p)||[]).forEach(it=>{ if(it&&it.key) sel[it.key]=String(it.specs||''); }); }
+}catch(e){}
+
+const E = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function refreshCnt(){ document.getElementById('cnt').textContent = Object.keys(sel).length; }
+
+function render(){
+  const root = document.getElementById('groups');
+  root.innerHTML = '';
+  for(const [gname, machines] of GROUPS){
+    const g = document.createElement('div'); g.className='group';
+    g.innerHTML = `<h3>${E(gname)}</h3>`;
+    for(const [key,label] of machines){
+      const on = key in sel;
+      const mc = document.createElement('div');
+      mc.className = 'mc' + (on?' on':'');
+      mc.innerHTML =
+        `<div class="row" data-k="${key}">
+           <div class="tick">${on?'✓':''}</div>
+           <div class="nm">${E(label)}</div>
+         </div>
+         <div class="specwrap"><div class="ib">
+           <label>Ключевые размеры (опц.)</label>
+           <input class="inp" data-spec="${key}" placeholder="напр.: ⌀ до 320, длина до 1500"
+                  value="${E(sel[key]||'')}">
+         </div></div>`;
+      g.appendChild(mc);
+    }
+    root.appendChild(g);
+  }
+  // toggle по строке станка
+  root.querySelectorAll('.row').forEach(r=>{
+    r.addEventListener('click', ()=>{
+      const k = r.getAttribute('data-k');
+      if(k in sel){ delete sel[k]; } else { sel[k]=''; }
+      hap('light'); render();
+    });
+  });
+  // ввод размеров (не перерисовываем, чтобы не терять фокус)
+  root.querySelectorAll('input[data-spec]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{ const k=inp.getAttribute('data-spec'); if(k in sel) sel[k]=inp.value; });
+    inp.addEventListener('click', e=>e.stopPropagation());
+  });
+  refreshCnt();
+}
+
+function toast(msg, err){
+  const t=document.getElementById('toast'); t.textContent=msg;
+  t.className='toast on'+(err?' err':''); setTimeout(()=>{t.className='toast'+(err?' err':'');},2600);
+}
+
+document.getElementById('save').addEventListener('click', ()=>{
+  const btn=document.getElementById('save'); btn.disabled=true;
+  const park = Object.keys(sel).map(k=>({key:k, specs:(sel[k]||'').slice(0,80)}));
+  const body = { park: park, user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null };
+  fetch('/api/equipment',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':IID},body:JSON.stringify(body)})
+    .then(r=>r.json())
+    .then(d=>{
+      btn.disabled=false;
+      if(d&&d.ok){ hap('medium'); toast('✅ Сохранено: '+(d.count||park.length)+' станков. Бот применил парк.');
+        if(TG&&TG.close) setTimeout(()=>{try{TG.close();}catch(e){}},1400); }
+      else { toast('Не удалось сохранить — войдите через бота',true); }
+    })
+    .catch(()=>{ btn.disabled=false; toast('Ошибка сети — попробуйте ещё раз',true); });
+});
+
+render();
+</script>
+</body>
+</html>
