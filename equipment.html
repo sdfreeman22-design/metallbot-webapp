@@ -56,6 +56,14 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
 
 .note{font-family:var(--mono);font-size:12px;color:var(--ink4);line-height:1.6;border:1px dashed var(--border2);border-radius:var(--r);padding:11px 13px;margin-top:6px}
 .note b{color:var(--ink3)}
+.photolabel{font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin:12px 0 7px}
+.thumbs{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.thumb{width:56px;height:56px;border-radius:6px;overflow:hidden;border:1px solid var(--border2);background:var(--bg2);flex:none}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.noimg{display:none}
+.addph{width:56px;height:56px;border-radius:6px;border:1px dashed var(--cyan);background:var(--cyan-dim);color:var(--cyan);
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;text-align:center;cursor:pointer;flex:none;line-height:1.15;padding:4px}
+.addph:active{transform:scale(.95)}
 
 .savebar{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
   background:linear-gradient(0deg,var(--bg) 70%,transparent);border-top:1px solid var(--border)}
@@ -81,7 +89,7 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
   <div class="sub">Отметьте ваши станки — и бот будет строить <b>маршрутную карту детали под ваше оборудование</b> (фишка подписки). Размеры станка — по желанию.</div>
   <div class="cnt">Выбрано станков: <b id="cnt">0</b></div>
   <div id="groups"></div>
-  <div class="note">📷 <b>Фото станков</b> добавляются в боте: «Мой кабинет → 🏭 Парк оборудования → станок → Добавить фото». В мини-аппе фото появится в следующем обновлении.</div>
+  <div class="note">📷 <b>Фото станков</b> — у выбранного станка нажмите «＋ Фото» (камера или галерея). Фото подтверждаются в чате бота и хранятся в Telegram.</div>
 </div>
 <div class="savebar"><div class="inner">
   <button class="runbtn" id="save">💾 Сохранить парк</button>
@@ -106,10 +114,12 @@ const GROUPS = [
 ];
 
 // начальное состояние парка — из ?park=<urlencoded json> (бот передаёт текущий парк)
-const sel = {};   // {key: specs}
+const sel = {};          // {key: specs}
+const photos = {};       // {key:[file_id]} — существующие (из бота), показ через прокси
+const localPhotos = {};  // {key:[dataURL]} — оптимистичный предпросмотр только что загруженных
 try{
   const p = new URLSearchParams(location.search).get('park');
-  if(p){ (JSON.parse(p)||[]).forEach(it=>{ if(it&&it.key) sel[it.key]=String(it.specs||''); }); }
+  if(p){ (JSON.parse(p)||[]).forEach(it=>{ if(it&&it.key){ sel[it.key]=String(it.specs||''); photos[it.key]=(it.photos||[]).slice(0,3); } }); }
 }catch(e){}
 
 const E = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -125,6 +135,9 @@ function render(){
       const on = key in sel;
       const mc = document.createElement('div');
       mc.className = 'mc' + (on?' on':'');
+      const thumbs =
+        (photos[key]||[]).map(fid=>`<div class="thumb"><img src="/api/equipment/photo?fid=${encodeURIComponent(fid)}" loading="lazy" onerror="this.closest('.thumb').classList.add('noimg')"></div>`).join('')
+      + (localPhotos[key]||[]).map(d=>`<div class="thumb"><img src="${d}"></div>`).join('');
       mc.innerHTML =
         `<div class="row" data-k="${key}">
            <div class="tick">${on?'✓':''}</div>
@@ -134,6 +147,8 @@ function render(){
            <label>Ключевые размеры (опц.)</label>
            <input class="inp" data-spec="${key}" placeholder="напр.: ⌀ до 320, длина до 1500"
                   value="${E(sel[key]||'')}">
+           <div class="photolabel">Фото станка</div>
+           <div class="thumbs">${thumbs}<label class="addph">＋ Фото<input type="file" accept="image/*" capture="environment" data-file="${key}" hidden></label></div>
          </div></div>`;
       g.appendChild(mc);
     }
@@ -152,7 +167,37 @@ function render(){
     inp.addEventListener('input', ()=>{ const k=inp.getAttribute('data-spec'); if(k in sel) sel[k]=inp.value; });
     inp.addEventListener('click', e=>e.stopPropagation());
   });
+  // загрузка фото станка
+  root.querySelectorAll('input[data-file]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{ const k=inp.getAttribute('data-file'); const f=inp.files&&inp.files[0]; if(f) uploadPhoto(k,f); inp.value=''; });
+  });
   refreshCnt();
+}
+
+function compressImage(file, maxDim, quality){
+  return new Promise((res,rej)=>{
+    const img=new Image(); const url=URL.createObjectURL(file);
+    img.onload=()=>{ let w=img.width,h=img.height;
+      if(Math.max(w,h)>maxDim){ const s=maxDim/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      try{ c.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',quality)); }
+      catch(e){ rej(e); } };
+    img.onerror=rej; img.src=url;
+  });
+}
+async function uploadPhoto(key, file){
+  toast('📷 Загружаю фото…');
+  let dataURL;
+  try{ dataURL = await compressImage(file, 1280, 0.6); }
+  catch(e){ toast('Не удалось обработать фото',true); return; }
+  const b64 = (dataURL.split(',')[1]||'');
+  if(!b64 || b64.length > 700000){ toast('Фото слишком большое — выберите другое',true); return; }
+  const body={ key:key, image_b64:b64, user:(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null };
+  try{
+    const d = await fetch('/api/equipment/photo',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':IID},body:JSON.stringify(body)}).then(r=>r.json());
+    if(d&&d.ok){ hap('medium'); (localPhotos[key]=localPhotos[key]||[]).push(dataURL); render(); toast('✅ Фото добавлено'); }
+    else toast('Фото не принято — войдите через бота',true);
+  }catch(e){ toast('Ошибка сети при загрузке фото',true); }
 }
 
 function toast(msg, err){

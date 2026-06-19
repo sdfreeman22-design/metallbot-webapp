@@ -1526,6 +1526,53 @@ async def api_equipment_save(request: Request, x_telegram_init_data: str = Heade
     return {"ok": True, "queued": True, "count": len(clean)}
 
 
+@app.post("/api/equipment/photo")
+async def api_equipment_photo_upload(request: Request, x_telegram_init_data: str = Header(default="")):
+    """Клиент загружает ФОТО станка из мини-аппа (сжатый base64) → очередь equip_photo;
+    бот декодирует и грузит в Telegram (получает file_id). Работает без токена на Render."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    me  = _coop_who(x_telegram_init_data, body)
+    uid = me.get("id")
+    if not uid:
+        return JSONResponse({"ok": False, "reason": "no_user"}, status_code=401)
+    key = str(body.get("key") or "")[:24]
+    img = str(body.get("image_b64") or "")
+    if not key or not img or len(img) > 700000:        # ~520 КБ base64
+        return JSONResponse({"ok": False, "reason": "bad"}, status_code=400)
+    _coop_actions.append({"action": "equip_photo", "uid": uid, "key": key,
+                          "image_b64": img, "ts": time.time()})
+    del _coop_actions[:-300]
+    return {"ok": True, "queued": True}
+
+
+@app.get("/api/equipment/photo")
+async def api_equipment_photo_get(fid: str):
+    """Прокси Telegram-фото станка по file_id (через TELEGRAM_TOKEN). Без токена → 404
+    (фото хранятся в Telegram; показ в окне требует токен на Render)."""
+    import httpx
+    from fastapi.responses import StreamingResponse
+    if not _BOT_TOKEN or not fid or len(fid) > 250:
+        raise HTTPException(404, "Фото недоступно")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r1 = await client.get(f"https://api.telegram.org/bot{_BOT_TOKEN}/getFile",
+                                  params={"file_id": fid})
+            j = r1.json()
+            if not j.get("ok"):
+                raise HTTPException(404, "Фото не найдено")
+            fpath = j["result"]["file_path"]
+            r2 = await client.get(f"https://api.telegram.org/file/bot{_BOT_TOKEN}/{fpath}")
+            if r2.status_code != 200:
+                raise HTTPException(502, "Ошибка загрузки фото")
+            return StreamingResponse(iter([r2.content]), media_type="image/jpeg",
+                                     headers={"Cache-Control": "public, max-age=86400"})
+    except httpx.RequestError:
+        raise HTTPException(502, "Ошибка сети")
+
+
 # ── Прайсы-файлы компаний (хранятся в Telegram через бота; в листе только file_id) ──
 _company_files_q: list[dict] = []   # очередь: attach (бот попросит файл) / get (бот пришлёт файл)
 
