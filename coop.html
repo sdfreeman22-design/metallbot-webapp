@@ -56,11 +56,14 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
 .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;color:var(--ink2);margin:8px 0 4px}
 .meta span{font-family:var(--mono);font-size:13px}
 .meta b{color:var(--ink);font-weight:600}
-.card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:11px;gap:10px}
+.card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:11px;gap:8px 12px;flex-wrap:wrap}
+.card .foot-r{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
 .card .dt{font-family:var(--mono);font-size:12px;color:var(--ink4);letter-spacing:.5px}
-.rcount{font-family:var(--mono);font-size:13px;color:var(--amber)}
+.rcount{font-family:var(--mono);font-size:13px;color:var(--amber);white-space:nowrap}
+.cta-row{margin-top:10px}
 .act{padding:9px 16px;border-radius:var(--r);border:1px solid var(--cyan);background:transparent;color:var(--cyan);
   font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;box-shadow:inset 0 0 14px var(--cyan-dim);transition:all .18s;white-space:nowrap}
+.act.cta{display:block;width:100%;text-align:center}
 .act:active{transform:scale(.96);background:var(--cyan-dim)}
 .badge{font-family:var(--mono);font-size:12px;letter-spacing:.5px;padding:6px 12px;border-radius:var(--r);white-space:nowrap}
 .badge.mine{color:var(--violet);border:1px solid rgba(164,114,255,.4);background:var(--violet-dim)}
@@ -441,21 +444,23 @@ function orderCard(o, ctx){
     o.city?`<span>📍 ${E(o.city)}</span>`:'',
     (o.budget&&o.budget!=='0')?`<span>💰 ${E(o.budget)} ₽</span>`:''
   ].filter(Boolean).join('');
-  let action='';
+  const rcount = `<span class="rcount">📨 откликов: ${E(o.replies)}</span>`;
+  let badge='', cta='';
   if(ctx==='mine'){
-    action = `<span class="rcount">📨 откликов: ${E(o.replies)}</span><button class="act" onclick="openOrderResponses('${E(o.id)}')">👀 Отклики</button>`;
+    cta = `<button class="act cta" onclick="openOrderResponses('${E(o.id)}')">👀 Отклики</button>`;
   } else if(o.is_mine){
-    action = `<span class="rcount">📨 откликов: ${E(o.replies)}</span><span class="badge mine">ваш заказ</span>`;
+    badge = `<span class="badge mine">ваш заказ</span>`;
   } else if(o.replied){
-    action = `<span class="dt">📨 откликов: ${E(o.replies)}</span><span class="badge done">✓ вы откликнулись</span>`;
+    badge = `<span class="badge done">✓ вы откликнулись</span>`;
   } else {
-    action = `<span class="dt">📨 откликов: ${E(o.replies)}</span><button class="act" onclick="openResp('${E(o.id)}')">💬 Откликнуться</button>`;
+    cta = `<button class="act cta" onclick="openResp('${E(o.id)}')">💬 Откликнуться</button>`;
   }
   return `<div class="card${o.is_mine?' mine':''}">
     <div class="top"><div class="ttl">${E(o.title)||'Без названия'}</div><div class="oid">${E(o.id)}</div></div>
     ${ops?`<div class="chips">${ops}</div>`:''}
     ${meta?`<div class="meta">${meta}</div>`:''}
-    <div class="foot"><span class="dt">${E(o.date)}</span><div style="display:flex;gap:10px;align-items:center">${action}</div></div>
+    <div class="foot"><span class="dt">${E(o.date)}</span><div class="foot-r">${rcount}${badge}</div></div>
+    ${cta?`<div class="cta-row">${cta}</div>`:''}
   </div>`;
 }
 let feedBusy=false;
