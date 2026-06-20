@@ -509,7 +509,7 @@ def _sort_key(c: dict) -> tuple:
     return (tier, rat)
 
 @app.get("/api/contacts")
-def api_contacts(q: str = "", kind: str = ""):
+def api_contacts(q: str = "", kind: str = "", _auth: dict = Depends(require_manager)):
     items = _load_contacts()
     if kind:
         items = [x for x in items if x["kind"] == kind]
@@ -533,7 +533,7 @@ def api_contacts(q: str = "", kind: str = ""):
     )
 
 @app.get("/api/contact/{contact_id:path}")
-def api_contact(contact_id: str):
+def api_contact(contact_id: str, _auth: dict = Depends(require_manager)):
     items = _load_contacts()
     target = next(
         (x for x in items
@@ -1621,7 +1621,7 @@ def api_company_file_queue():
     return {"actions": out}
 
 @app.get("/api/company-files/{company:path}")
-def api_company_files(company: str):
+def api_company_files(company: str, _auth: dict = Depends(require_manager)):
     """Список прикреплённых прайсов компании (для показа в карточке)."""
     out = []
     for r in _sheet_rows("Прайсы_Файлы"):
