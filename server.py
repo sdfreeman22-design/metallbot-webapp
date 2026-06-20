@@ -167,6 +167,19 @@ def require_manager(x_telegram_init_data: str = Header(default="")) -> dict:
         raise HTTPException(403, "Нет прав на изменение базы")
     return user
 
+# Секрет для служебных эндпоинтов (дренирующие очереди + сброс кэша), которые дёргает
+# ТОЛЬКО бот. = sha256(TELEGRAM_TOKEN) — тот же токен у бота и на Render → совпадает
+# без новых env-переменных. Защищает от анонимного дренажа очередей (кража действий
+# бота) и DoS сбросом кэша.
+_WEBAPP_SECRET = _hashlib.sha256(_BOT_TOKEN.encode()).hexdigest() if _BOT_TOKEN else ""
+def require_pull_secret(x_webapp_secret: str = Header(default="")):
+    """Если TELEGRAM_TOKEN не задан → пропускаем (поведение прежнее, без риска).
+    Иначе требуем совпадения секрета (constant-time)."""
+    if not _BOT_TOKEN:
+        return
+    if not _hmac.compare_digest(x_webapp_secret or "", _WEBAPP_SECRET):
+        raise HTTPException(401, "Требуется секрет служебного эндпоинта")
+
 # Раздаём скачанные фото партнёров
 STATIC_DIR = WEBAPP_DIR / "static"
 STATIC_DIR.mkdir(exist_ok=True)
@@ -639,7 +652,7 @@ def api_cache_status():
     return {"dirty": dirty}
 
 @app.post("/api/cache-bust")
-async def api_cache_bust(request: Request):
+async def api_cache_bust(request: Request, _sec=Depends(require_pull_secret)):
     """Явный сброс кэша листов. Принимает {"sheets": [...]} (формат бота) или голый список."""
     try:
         body = await request.json()
@@ -892,7 +905,7 @@ def api_health():
     return {"ok": True, "port": PORT}
 
 @app.post("/api/cache/clear")
-def api_cache_clear():
+def api_cache_clear(_sec=Depends(require_pull_secret)):
     """Сбрасывает кэш Google Sheets — вызывается после парсинга."""
     global _ss
     _cache.clear()
@@ -1183,7 +1196,7 @@ async def api_metal_order(request: Request, x_telegram_init_data: str = Header(d
     return {"ok": True, "queued": True}
 
 @app.get("/api/metal-orders")
-def api_metal_orders():
+def api_metal_orders(_sec=Depends(require_pull_secret)):
     """Бот забирает накопленные заявки и очищает очередь."""
     global _metal_orders
     out = _metal_orders[:]
@@ -1495,7 +1508,7 @@ async def api_coop_profile_del(request: Request, x_telegram_init_data: str = Hea
     return {"ok": True, "queued": True}
 
 @app.get("/api/coop/actions")
-def api_coop_actions():
+def api_coop_actions(_sec=Depends(require_pull_secret)):
     """Бот забирает накопленные действия Кооперации (размещение/отклик/открыть/выбрать/инн/промо/профиль)."""
     global _coop_actions
     out = _coop_actions[:]
@@ -1613,7 +1626,7 @@ async def api_company_file(request: Request, x_telegram_init_data: str = Header(
     return {"ok": True, "queued": True}
 
 @app.get("/api/company-file-queue")
-def api_company_file_queue():
+def api_company_file_queue(_sec=Depends(require_pull_secret)):
     """Бот забирает очередь действий с прайсами и очищает."""
     global _company_files_q
     out = _company_files_q[:]
