@@ -42,7 +42,8 @@ from typing import Optional
 from decimal import Decimal, InvalidOperation       # КП-модуль: деньги только Decimal
 from datetime import datetime
 
-app = FastAPI(title="METALLBOT Mini App")
+app = FastAPI(title="METALLBOT Mini App",
+              docs_url=None, redoc_url=None, openapi_url=None)   # скрыть карту эндпоинтов (анти-разведка)
 
 # Наценка КП по умолчанию (env QUOTE_MARKUP, 0.30 = +30%). Перенесено из v2.1.
 QUOTE_MARKUP = Decimal(os.getenv("QUOTE_MARKUP", "0.30"))
@@ -74,6 +75,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 logger.info("CORS origins: %s", _cors_origins)
+
+# ── Простой rate-limit (анти-скрейп/DoS), in-memory на инстанс ────────────────
+# Защищает /api/* от массового скрейпа/завала. Щедрый порог, чтобы не задеть
+# поллинг бота (~30-40/мин с одного IP) и обычную работу мини-аппа. /api/img
+# (прокси фото, может давать бурсты при просмотре карточек) и health — исключены.
+from collections import deque as _deque
+import time as _time_rl
+_RL_WINDOW = 60
+_RL_MAX    = int(os.getenv("RATE_LIMIT_PER_MIN", "300"))
+_RL_EXEMPT = ("/api/health", "/api/img", "/static")
+_rl_hits: dict = {}
+@app.middleware("http")
+async def _rate_limit_mw(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/api/") or any(path.startswith(e) for e in _RL_EXEMPT):
+        return await call_next(request)
+    ip  = request.client.host if request.client else "?"
+    now = _time_rl.time()
+    dq  = _rl_hits.get(ip)
+    if dq is None:
+        if len(_rl_hits) > 20000:        # грубая защита от роста словаря по уник. IP
+            _rl_hits.clear()
+        dq = _deque(); _rl_hits[ip] = dq
+    while dq and now - dq[0] > _RL_WINDOW:
+        dq.popleft()
+    if len(dq) >= _RL_MAX:
+        from fastapi.responses import JSONResponse as _JR
+        return _JR({"error": "Слишком много запросов, попробуйте позже"}, status_code=429)
+    dq.append(now)
+    return await call_next(request)
 
 # ── Авторизация Mini App (Telegram initData, HMAC-SHA256 от токена бота) ───────
 import hashlib as _hashlib
