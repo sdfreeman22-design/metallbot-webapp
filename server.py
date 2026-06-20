@@ -265,6 +265,8 @@ def _row_to_contact(row: dict, kind: str) -> dict:
     equipment = _s(row.get("Оборудование_парс") or row.get("Оборудование"))
     materials = _s(row.get("Материалы_парс")    or row.get("Материалы"))
     spec      = _s(row.get("Специализация") or row.get("Вид металла/услуги"))
+    # Парк оборудования клиента — file_id фото станков (Фаза 3 ч.2b, пишет бот)
+    park_photos = [x.strip() for x in _s(row.get("Парк_Фото")).split(",") if x.strip()][:8]
 
     return {
         "id":             name,
@@ -278,6 +280,7 @@ def _row_to_contact(row: dict, kind: str) -> dict:
         "service":        service,
         "equipment":      equipment,
         "materials":      materials,
+        "park_photos":    park_photos,
         "status":         _s(row.get("Статус")),
         "rating":         _s(row.get("Рейтинг")),
         "price_level":    _s(row.get("Цена_уровень")),

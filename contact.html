@@ -601,6 +601,14 @@ function rD(c){
       +photos.map(u=>'<img src="'+proxyUrl(u)+'" loading="lazy" onerror="this.style.display=\'none\'" onclick="opLb(\''+proxyUrl(u)+'\')">')
       .join('')+'</div>'
     :'';
+  // 🏭 Парк оборудования клиента — фото станков (file_id через прокси /api/equipment/photo)
+  const parkPhotos=c.park_photos||[];
+  const parkGal=parkPhotos.length
+    ?'<div class="dsec">🏭 Парк оборудования</div><div class="gal">'
+      +parkPhotos.map(function(fid){var u=BASE+'/api/equipment/photo?fid='+encodeURIComponent(fid);
+        return '<img src="'+u+'" loading="lazy" onerror="this.style.display=\'none\'" onclick="opLb(\''+u+'\')">';})
+      .join('')+'</div>'
+    :'';
 
   $('det').innerHTML=
     '<div style="padding-top:env(safe-area-inset-top)"><div class="dh">'
@@ -626,7 +634,7 @@ function rD(c){
     +'</div>'
     +'<div class="dact-row"><button class="dbtn2" onclick="bumpAct(\'resp\')">✓ Отметить отклик / взял заказ</button></div>'
     +(c.phone?'<div class="dac"><button class="dbtn" onclick="haptic(\'medium\');window.open(\'tel:'+E(c.phone.replace(/\s/g,''))+'\')">📞 Позвонить</button></div>':'')
-    +galHtml+desc+tagsH+certs+facts
+    +galHtml+parkGal+desc+tagsH+certs+facts
     +(info?'<div class="dsec">Контакты</div><div class="dcd">'+info+'</div>':'')
     +(c.requisites?'<div class="dsec">Реквизиты</div><div class="dcd" style="white-space:pre-wrap;font-family:var(--mono);font-size:13px;line-height:1.5">'+E(c.requisites)+'</div>':'')
     +badge
