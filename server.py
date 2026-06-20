@@ -124,6 +124,14 @@ def _verify_init_data(init_data: str) -> Optional[dict]:
         calc_hash = _hmac.new(secret, check_string.encode(), _hashlib.sha256).hexdigest()
         if not _hmac.compare_digest(calc_hash, recv_hash):
             return None
+        # Анти-replay: подписанный initData не должен быть старше суток. Без этой
+        # проверки однажды перехваченная валидная строка даёт доступ навсегда.
+        try:
+            ad = int(pairs.get("auth_date", "0"))
+        except (ValueError, TypeError):
+            return None
+        if ad <= 0 or (time.time() - ad) > 86400:
+            return None
         user = pairs.get("user")
         return json.loads(user) if user else {}
     except Exception as e:
@@ -934,6 +942,28 @@ def _is_public_host(host: str) -> bool:
             return False
     return True
 
+def _safe_resolve(host: str):
+    """Резолвит хост ОДИН раз и проверяет, что ВСЕ адреса публичные.
+    Возвращает первый публичный IP (для pin-соединения против DNS-rebinding) или None."""
+    import socket, ipaddress
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return None
+    first = None
+    for info in infos:
+        ip = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        if (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+            return None
+        if first is None:
+            first = ip
+    return first
+
 @app.get("/api/img")
 async def api_img_proxy(url: str):
     """Проксирует изображение с сайта партнёра — обходит CORS и hotlink-защиту."""
@@ -949,19 +979,28 @@ async def api_img_proxy(url: str):
     path = parsed.path.lower()
     if not any(path.endswith(e) for e in allowed_ext):
         raise HTTPException(400, "Только изображения")
-    # SSRF-защита: запрет приватных/локальных адресов
-    if not _is_public_host(parsed.hostname or ""):
+    # SSRF-защита: резолвим хост ОДИН раз, проверяем что IP публичный, и
+    # соединяемся К ЭТОМУ IP (pin против DNS-rebinding). Редиректы запрещены —
+    # они могли бы увести на внутренний хост уже после проверки.
+    from urllib.parse import urlunparse
+    ip = _safe_resolve(parsed.hostname or "")
+    if not ip:
         raise HTTPException(400, "Недопустимый адрес источника")
+    _host_in_url = f"[{ip}]" if ":" in ip else ip
+    _netloc = _host_in_url + (f":{parsed.port}" if parsed.port else "")
+    target_url = urlunparse((parsed.scheme, _netloc, parsed.path,
+                             parsed.params, parsed.query, ""))
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "image/*,*/*;q=0.8",
         "Referer": f"{parsed.scheme}://{parsed.netloc}/",
+        "Host": parsed.netloc,   # сохраняем vhost при соединении по IP
     }
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=15,
+        async with httpx.AsyncClient(follow_redirects=False, timeout=15,
                                      verify=False) as client:
-            async with client.stream("GET", url, headers=headers) as r:
+            async with client.stream("GET", target_url, headers=headers) as r:
                 if r.status_code != 200:
                     raise HTTPException(502, f"Источник вернул {r.status_code}")
                 ct = r.headers.get("content-type", "image/jpeg")
