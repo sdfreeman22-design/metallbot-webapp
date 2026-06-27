@@ -1077,8 +1077,8 @@ def api_images(company_slug: str):
 DOCS_DIR = ROOT_DIR / "excel_docs"
 
 @app.get("/api/docs")
-def api_docs_list():
-    """Возвращает список папок деталей с перечнем файлов внутри."""
+def api_docs_list(_auth: dict = Depends(require_manager)):
+    """Возвращает список папок деталей с перечнем файлов внутри. КП/Расчёт = только менеджер/админ."""
     if not DOCS_DIR.exists():
         return []
     result = []
@@ -1115,8 +1115,8 @@ def _doc_tag(stem: str) -> str:
 
 
 @app.get("/api/docs/{folder}/{filename}")
-def api_doc_file(folder: str, filename: str):
-    """Отдаёт файл документа для скачивания / просмотра."""
+def api_doc_file(folder: str, filename: str, _auth: dict = Depends(require_manager)):
+    """Отдаёт файл документа для скачивания / просмотра. КП/Расчёт = только менеджер/админ."""
     # Защита от path traversal
     safe_folder = Path(folder).name
     safe_file   = Path(filename).name
