@@ -410,7 +410,7 @@ function openProf(prof){
   };
   if(!profLoaded){
     let pending=2; const done=()=>{ if(--pending===0) applySel(); };
-    api('/api/operations').then(d=>{ document.getElementById('prof-ops').innerHTML=((d.operations||[]).map(x=>x.op)).map(op=>'<span class="opb" data-op="'+E(op)+'" onclick="tglProf(this,1)">'+E(op)+'</span>').join('')||'<span class="sub">—</span>'; done(); }).catch(done);
+    api('/api/operations?all=1').then(d=>{ document.getElementById('prof-ops').innerHTML=((d.operations||[]).map(x=>x.op)).map(op=>'<span class="opb" data-op="'+E(op)+'" onclick="tglProf(this,1)">'+E(op)+'</span>').join('')||'<span class="sub">—</span>'; done(); }).catch(done);
     api('/api/materials').then(d=>{ const ms=(d.materials||[]).map(x=>x.mat||x.op||x); document.getElementById('prof-mats').innerHTML=ms.map(m=>'<span class="opb" data-op="'+E(m)+'" onclick="tglProf(this,0)">'+E(m)+'</span>').join('')||'<span class="sub">—</span>'; done(); }).catch(done);
     profLoaded=true;
   } else { applySel(); }
@@ -485,7 +485,7 @@ const DDL_QK=['14 дней','30 дней','45 дней','60 дней'];
 function buildPlace(){
   document.getElementById('mat-qk').innerHTML=MAT_QK.map(m=>`<span class="qb" onclick="document.getElementById('f-mat').value='${m}';hap()">${m}</span>`).join('');
   document.getElementById('ddl-qk').innerHTML=DDL_QK.map(m=>`<span class="qb" onclick="document.getElementById('f-ddl').value='${m}';hap()">${m}</span>`).join('');
-  api('/api/operations').then(d=>{
+  api('/api/operations?all=1').then(d=>{
     const ops=(d.operations||[]).map(x=>x.op);
     const sel=document.getElementById('ops-sel');
     if(!ops.length){ sel.innerHTML='<span class="sub">—</span>'; return; }
